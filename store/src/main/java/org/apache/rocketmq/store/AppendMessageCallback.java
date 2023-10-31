@@ -17,21 +17,24 @@
 package org.apache.rocketmq.store;
 
 import java.nio.ByteBuffer;
+
 import org.apache.rocketmq.common.message.MessageExtBatch;
 import org.apache.rocketmq.common.message.MessageExtBrokerInner;
 
 /**
+ * 消息写入回调 函数
  * Write messages callback interface
  */
 public interface AppendMessageCallback {
 
     /**
+     * 消息序列化后写入到MapedByteBuffer
      * After message serialization, write MappedByteBuffer
      *
      * @return How many bytes to write
      */
     AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer,
-        final int maxBlank, final MessageExtBrokerInner msg, PutMessageContext putMessageContext);
+                                 final int maxBlank, final MessageExtBrokerInner msg, PutMessageContext putMessageContext);
 
     /**
      * After batched message serialization, write MappedByteBuffer
@@ -40,5 +43,5 @@ public interface AppendMessageCallback {
      * @return How many bytes to write
      */
     AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer,
-        final int maxBlank, final MessageExtBatch messageExtBatch, PutMessageContext putMessageContext);
+                                 final int maxBlank, final MessageExtBatch messageExtBatch, PutMessageContext putMessageContext);
 }

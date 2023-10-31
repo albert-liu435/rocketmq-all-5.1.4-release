@@ -22,6 +22,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 消息系统所传输信息的物理载体，生产和消费数据的最小单位，每条消息必须属于一个主题。RocketMQ中每个消息拥有唯一的Message ID，且可以携带具有业务标识的Key。
+ * 系统提供了通过Message ID和Key查询消息的功能。
+ */
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
@@ -83,13 +87,13 @@ public class Message implements Serializable {
     public void putUserProperty(final String name, final String value) {
         if (MessageConst.STRING_HASH_SET.contains(name)) {
             throw new RuntimeException(String.format(
-                "The Property<%s> is used by system, input another please", name));
+                    "The Property<%s> is used by system, input another please", name));
         }
 
         if (value == null || value.trim().isEmpty()
-            || name == null || name.trim().isEmpty()) {
+                || name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException(
-                "The name or value of property can not be null or blank string!"
+                    "The name or value of property can not be null or blank string!"
             );
         }
 
@@ -207,20 +211,22 @@ public class Message implements Serializable {
     @Override
     public String toString() {
         return "Message{" +
-            "topic='" + topic + '\'' +
-            ", flag=" + flag +
-            ", properties=" + properties +
-            ", body=" + Arrays.toString(body) +
-            ", transactionId='" + transactionId + '\'' +
-            '}';
+                "topic='" + topic + '\'' +
+                ", flag=" + flag +
+                ", properties=" + properties +
+                ", body=" + Arrays.toString(body) +
+                ", transactionId='" + transactionId + '\'' +
+                '}';
     }
 
     public void setDelayTimeSec(long sec) {
         this.putProperty(MessageConst.PROPERTY_TIMER_DELAY_SEC, String.valueOf(sec));
     }
+
     public void setDelayTimeMs(long timeMs) {
         this.putProperty(MessageConst.PROPERTY_TIMER_DELAY_MS, String.valueOf(timeMs));
     }
+
     public void setDeliverTimeMs(long timeMs) {
         this.putProperty(MessageConst.PROPERTY_TIMER_DELIVER_MS, String.valueOf(timeMs));
     }

@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -34,15 +35,27 @@ import org.apache.rocketmq.store.logfile.DefaultMappedFile;
 import org.apache.rocketmq.store.logfile.MappedFile;
 
 /**
+ * https://blog.csdn.net/usagoole/article/details/126394486
+ * <p>
+ * 提前创建MappedFile服务线程类,启动线程在DefaultMessageStore类中
+ * AllocateMappedFileService用于提前创建一个MappedFile和下一个MappedFile
+ * <p>
+ * <p>
  * Create MappedFile in advance
  */
 public class AllocateMappedFileService extends ServiceThread {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
+    //等待创建MappedFile的超时时间，默认5秒
     private static int waitTimeOut = 1000 * 5;
+
+    //用来保存当前所有待处理的分配请求，其中key是filePath,value是分配请求AllocateRequest。
+    //如果分配请求被成功处理，即获取到映射文件则从请求会从requestTable中移除
     private ConcurrentMap<String, AllocateRequest> requestTable =
-        new ConcurrentHashMap<>();
+            new ConcurrentHashMap<>();
     private PriorityBlockingQueue<AllocateRequest> requestQueue =
-        new PriorityBlockingQueue<>();
+            new PriorityBlockingQueue<>();
+    //创建MappedFile是否有异常
+
     private volatile boolean hasException = false;
     private DefaultMessageStore messageStore;
 
@@ -54,7 +67,7 @@ public class AllocateMappedFileService extends ServiceThread {
         int canSubmitRequests = 2;
         if (this.messageStore.isTransientStorePoolEnable()) {
             if (this.messageStore.getMessageStoreConfig().isFastFailIfNoBufferInStorePool()
-                && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole()) { //if broker is slave, don't fast fail even no buffer in pool
+                    && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole()) { //if broker is slave, don't fast fail even no buffer in pool
                 canSubmitRequests = this.messageStore.remainTransientStoreBufferNumbs() - this.requestQueue.size();
             }
         }
@@ -65,7 +78,7 @@ public class AllocateMappedFileService extends ServiceThread {
         if (nextPutOK) {
             if (canSubmitRequests <= 0) {
                 log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " +
-                    "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.remainTransientStoreBufferNumbs());
+                        "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.remainTransientStoreBufferNumbs());
                 this.requestTable.remove(nextFilePath);
                 return null;
             }
@@ -81,7 +94,7 @@ public class AllocateMappedFileService extends ServiceThread {
         if (nextNextPutOK) {
             if (canSubmitRequests <= 0) {
                 log.warn("[NOTIFYME]TransientStorePool is not enough, so skip preallocate mapped file, " +
-                    "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.remainTransientStoreBufferNumbs());
+                        "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.remainTransientStoreBufferNumbs());
                 this.requestTable.remove(nextNextFilePath);
             } else {
                 boolean offerOK = this.requestQueue.offer(nextNextReq);
@@ -148,6 +161,8 @@ public class AllocateMappedFileService extends ServiceThread {
     }
 
     /**
+     * 此线程在DefaultMessageStore创建时启动
+     * 仅被外部线程中断，将返回false
      * Only interrupted by the external thread, will return false
      */
     private boolean mmapOperation() {
@@ -158,12 +173,12 @@ public class AllocateMappedFileService extends ServiceThread {
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
             if (null == expectedRequest) {
                 log.warn("this mmap request expired, maybe cause timeout " + req.getFilePath() + " "
-                    + req.getFileSize());
+                        + req.getFileSize());
                 return true;
             }
             if (expectedRequest != req) {
                 log.warn("never expected here,  maybe cause timeout " + req.getFilePath() + " "
-                    + req.getFileSize() + ", req:" + req + ", expectedRequest:" + expectedRequest);
+                        + req.getFileSize() + ", req:" + req + ", expectedRequest:" + expectedRequest);
                 return true;
             }
 
@@ -171,6 +186,7 @@ public class AllocateMappedFileService extends ServiceThread {
                 long beginTime = System.currentTimeMillis();
 
                 MappedFile mappedFile;
+                //如果启用了临时存储池
                 if (messageStore.isTransientStorePoolEnable()) {
                     try {
                         mappedFile = ServiceLoader.load(MappedFile.class).iterator().next();
@@ -187,16 +203,16 @@ public class AllocateMappedFileService extends ServiceThread {
                 if (elapsedTime > 10) {
                     int queueSize = this.requestQueue.size();
                     log.warn("create mappedFile spent time(ms) " + elapsedTime + " queue size " + queueSize
-                        + " " + req.getFilePath() + " " + req.getFileSize());
+                            + " " + req.getFilePath() + " " + req.getFileSize());
                 }
 
                 // pre write mappedFile
                 if (mappedFile.getFileSize() >= this.messageStore.getMessageStoreConfig()
-                    .getMappedFileSizeCommitLog()
-                    &&
-                    this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
+                        .getMappedFileSizeCommitLog()
+                        &&
+                        this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
                     mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(),
-                        this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
+                            this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
                 }
 
                 req.setMappedFile(mappedFile);

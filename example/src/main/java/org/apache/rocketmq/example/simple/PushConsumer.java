@@ -34,7 +34,7 @@ public class PushConsumer {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(CONSUMER_GROUP);
 
         // Uncomment the following line while debugging, namesrvAddr should be set to your local address
-//        consumer.setNamesrvAddr(NAMESRV_ADDR);
+        consumer.setNamesrvAddr(NAMESRV_ADDR);
 
         consumer.subscribe(TOPIC, "*");
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);

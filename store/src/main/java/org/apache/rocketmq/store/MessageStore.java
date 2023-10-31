@@ -20,6 +20,7 @@ import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.ViewBuilder;
+
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+
 import org.apache.rocketmq.common.BoundaryType;
 import org.apache.rocketmq.common.Pair;
 import org.apache.rocketmq.common.SystemClock;
@@ -75,6 +77,7 @@ public interface MessageStore {
     void destroy();
 
     /**
+     * 异步方式保存消息
      * Store a message into store in async manner, the processor can process the next request rather than wait for
      * result when result is completed, notify the client in async manner
      *
@@ -96,6 +99,8 @@ public interface MessageStore {
     }
 
     /**
+     * 保存消息到commitlog
+     * 核心逻辑分为了两大块：保存前的校验和调用CommitLog的putMessage()方法保存消息。
      * Store a message into store.
      *
      * @param msg Message instance to store
@@ -124,11 +129,10 @@ public interface MessageStore {
      * @return Matched messages.
      */
     GetMessageResult getMessage(final String group, final String topic, final int queueId,
-        final long offset, final int maxMsgNums, final MessageFilter messageFilter);
+                                final long offset, final int maxMsgNums, final MessageFilter messageFilter);
 
     /**
      * Asynchronous get message
-     * @see #getMessage(String, String, int, long, int, MessageFilter) getMessage
      *
      * @param group         Consumer group that launches this query.
      * @param topic         Topic to query.
@@ -137,9 +141,10 @@ public interface MessageStore {
      * @param maxMsgNums    Maximum count of messages to query.
      * @param messageFilter Message filter used to screen desired messages.
      * @return Matched messages.
+     * @see #getMessage(String, String, int, long, int, MessageFilter) getMessage
      */
     CompletableFuture<GetMessageResult> getMessageAsync(final String group, final String topic, final int queueId,
-        final long offset, final int maxMsgNums, final MessageFilter messageFilter);
+                                                        final long offset, final int maxMsgNums, final MessageFilter messageFilter);
 
     /**
      * Query at most <code>maxMsgNums</code> messages belonging to <code>topic</code> at <code>queueId</code> starting
@@ -155,11 +160,10 @@ public interface MessageStore {
      * @return Matched messages.
      */
     GetMessageResult getMessage(final String group, final String topic, final int queueId,
-        final long offset, final int maxMsgNums, final int maxTotalMsgSize, final MessageFilter messageFilter);
+                                final long offset, final int maxMsgNums, final int maxTotalMsgSize, final MessageFilter messageFilter);
 
     /**
      * Asynchronous get message
-     * @see #getMessage(String, String, int, long, int, int, MessageFilter) getMessage
      *
      * @param group           Consumer group that launches this query.
      * @param topic           Topic to query.
@@ -169,9 +173,10 @@ public interface MessageStore {
      * @param maxTotalMsgSize Maximum total msg size of the messages
      * @param messageFilter   Message filter used to screen desired messages.
      * @return Matched messages.
+     * @see #getMessage(String, String, int, long, int, int, MessageFilter) getMessage
      */
     CompletableFuture<GetMessageResult> getMessageAsync(final String group, final String topic, final int queueId,
-        final long offset, final int maxMsgNums, final int maxTotalMsgSize, final MessageFilter messageFilter);
+                                                        final long offset, final int maxMsgNums, final int maxTotalMsgSize, final MessageFilter messageFilter);
 
     /**
      * Get maximum offset of the topic queue.
@@ -288,6 +293,7 @@ public interface MessageStore {
 
     /**
      * HA runtime information
+     *
      * @return runtime information of ha
      */
     HARuntimeInfo getHARuntimeInfo();
@@ -324,9 +330,9 @@ public interface MessageStore {
 
     /**
      * Asynchronous get the store time of the earliest message in this store.
-     * @see #getEarliestMessageTime() getEarliestMessageTime
      *
      * @return timestamp of the earliest message in this store.
+     * @see #getEarliestMessageTime() getEarliestMessageTime
      */
     CompletableFuture<Long> getEarliestMessageTimeAsync(final String topic, final int queueId);
 
@@ -342,15 +348,15 @@ public interface MessageStore {
 
     /**
      * Asynchronous get the store time of the message specified.
-     * @see #getMessageStoreTimeStamp(String, int, long) getMessageStoreTimeStamp
      *
      * @param topic              message topic.
      * @param queueId            queue ID.
      * @param consumeQueueOffset consume queue offset.
      * @return store timestamp of the message.
+     * @see #getMessageStoreTimeStamp(String, int, long) getMessageStoreTimeStamp
      */
     CompletableFuture<Long> getMessageStoreTimeStampAsync(final String topic, final int queueId,
-        final long consumeQueueOffset);
+                                                          final long consumeQueueOffset);
 
     /**
      * Get the total number of the messages in the specified queue.
@@ -404,20 +410,20 @@ public interface MessageStore {
      * @param end    end timestamp.
      */
     QueryMessageResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-        final long end);
+                                    final long end);
 
     /**
      * Asynchronous query messages by given key.
-     * @see #queryMessage(String, String, int, long, long) queryMessage
      *
      * @param topic  topic of the message.
      * @param key    message key.
      * @param maxNum maximum number of the messages possible.
      * @param begin  begin timestamp.
      * @param end    end timestamp.
+     * @see #queryMessage(String, String, int, long, long) queryMessage
      */
     CompletableFuture<QueryMessageResult> queryMessageAsync(final String topic, final String key, final int maxNum,
-        final long begin, final long end);
+                                                            final long begin, final long end);
 
     /**
      * Update HA master address.
@@ -590,6 +596,7 @@ public interface MessageStore {
 
     /**
      * Get consume queue of the topic/queue. If consume queue not exist, will create one then return it.
+     *
      * @param topic   Topic.
      * @param queueId Queue ID.
      * @return Consume queue.
@@ -622,7 +629,7 @@ public interface MessageStore {
      * @param isFileEnd       if the dispatch request represents 'file end'
      */
     void onCommitLogDispatch(DispatchRequest dispatchRequest, boolean doDispatch, MappedFile commitLogFile,
-        boolean isRecover, boolean isFileEnd);
+                             boolean isRecover, boolean isFileEnd);
 
     /**
      * Get the message store config
@@ -738,7 +745,7 @@ public interface MessageStore {
      * Assign a message to queue offset. If there is a race condition, you need to lock/unlock this method
      * yourself.
      *
-     * @param msg        message
+     * @param msg message
      */
     void assignOffset(MessageExtBrokerInner msg);
 
@@ -915,7 +922,7 @@ public interface MessageStore {
      * @return DispatchRequest
      */
     DispatchRequest checkMessageAndReturnSize(final ByteBuffer byteBuffer, final boolean checkCRC,
-        final boolean checkDupInfo, final boolean readBody);
+                                              final boolean checkDupInfo, final boolean readBody);
 
     /**
      * Get remain transientStoreBuffer numbers

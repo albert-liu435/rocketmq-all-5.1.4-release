@@ -24,11 +24,19 @@ public abstract class ReferenceResource {
     protected volatile boolean cleanupOver = false;
     private volatile long firstShutdownTimestamp = 0;
 
+    /**
+     * 在数据提交commit和刷新flush的时候都会跟这两个方法有关系。首先会获取文件的引用，在处理完之后释放。hold和release方法在MappedFile的父类ReferenceResource类中定义的
+     *
+     * @return
+     */
     public synchronized boolean hold() {
+        //是否可用
         if (this.isAvailable()) {
+            //获取引用的数量，如果大于0说明存在引用，然后增加引用
             if (this.refCount.getAndIncrement() > 0) {
                 return true;
             } else {
+                //否则减少
                 this.refCount.getAndDecrement();
             }
         }
@@ -54,10 +62,11 @@ public abstract class ReferenceResource {
     }
 
     public void release() {
+        //减少文件的引用
         long value = this.refCount.decrementAndGet();
         if (value > 0)
             return;
-
+        //如果没有引用了，就可以释放对应的缓冲和内存映射
         synchronized (this) {
 
             this.cleanupOver = this.cleanup(value);

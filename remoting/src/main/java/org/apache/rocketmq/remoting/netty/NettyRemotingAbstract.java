@@ -23,6 +23,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.Future;
 import io.opentelemetry.api.common.AttributesBuilder;
+
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
+
 import org.apache.rocketmq.common.AbortProcessException;
 import org.apache.rocketmq.common.Pair;
 import org.apache.rocketmq.common.ServiceThread;
@@ -87,14 +89,14 @@ public abstract class NettyRemotingAbstract {
      * This map caches all on-going requests.
      */
     protected final ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable =
-        new ConcurrentHashMap<>(256);
+            new ConcurrentHashMap<>(256);
 
     /**
      * This container holds all processors per request code, aka, for each incoming request, we may look up the
      * responding processor in this map to handle the request.
      */
     protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor, ExecutorService>> processorTable =
-        new HashMap<>(64);
+            new HashMap<>(64);
 
     /**
      * Executor to feed netty events to user defined {@link ChannelEventListener}.
@@ -125,7 +127,7 @@ public abstract class NettyRemotingAbstract {
      * Constructor, specifying capacity of one-way and asynchronous semaphores.
      *
      * @param permitsOneway Number of permits for one-way requests.
-     * @param permitsAsync Number of permits for asynchronous requests.
+     * @param permitsAsync  Number of permits for asynchronous requests.
      */
     public NettyRemotingAbstract(final int permitsOneway, final int permitsAsync) {
         this.semaphoreOneway = new Semaphore(permitsOneway, true);
@@ -167,6 +169,7 @@ public abstract class NettyRemotingAbstract {
         if (msg != null) {
             switch (msg.getType()) {
                 case REQUEST_COMMAND:
+                    // 处理发送命令
                     processRequestCommand(ctx, msg);
                     break;
                 case RESPONSE_COMMAND:
@@ -199,14 +202,14 @@ public abstract class NettyRemotingAbstract {
     }
 
     public static void writeResponse(Channel channel, RemotingCommand request, @Nullable RemotingCommand response,
-        Consumer<Future<?>> callback) {
+                                     Consumer<Future<?>> callback) {
         if (response == null) {
             return;
         }
         AttributesBuilder attributesBuilder = RemotingMetricsManager.newAttributesBuilder()
-            .put(LABEL_IS_LONG_POLLING, request.isSuspended())
-            .put(LABEL_REQUEST_CODE, RemotingHelper.getRequestCodeDesc(request.getCode()))
-            .put(LABEL_RESPONSE_CODE, RemotingHelper.getResponseCodeDesc(response.getCode()));
+                .put(LABEL_IS_LONG_POLLING, request.isSuspended())
+                .put(LABEL_REQUEST_CODE, RemotingHelper.getRequestCodeDesc(request.getCode()))
+                .put(LABEL_RESPONSE_CODE, RemotingHelper.getResponseCodeDesc(response.getCode()));
         if (request.isOnewayRPC()) {
             attributesBuilder.put(LABEL_RESULT, RESULT_ONEWAY);
             RemotingMetricsManager.rpcLatency.record(request.getProcessTimer().elapsed(TimeUnit.MILLISECONDS), attributesBuilder.build());
@@ -218,10 +221,10 @@ public abstract class NettyRemotingAbstract {
             channel.writeAndFlush(response).addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
                     log.debug("Response[request code: {}, response code: {}, opaque: {}] is written to channel{}",
-                        request.getCode(), response.getCode(), response.getOpaque(), channel);
+                            request.getCode(), response.getCode(), response.getOpaque(), channel);
                 } else {
                     log.error("Failed to write response[request code: {}, response code: {}, opaque: {}] to channel{}",
-                        request.getCode(), response.getCode(), response.getOpaque(), channel, future.cause());
+                            request.getCode(), response.getCode(), response.getOpaque(), channel, future.cause());
                 }
                 attributesBuilder.put(LABEL_RESULT, RemotingMetricsManager.getWriteAndFlushResult(future));
                 RemotingMetricsManager.rpcLatency.record(request.getProcessTimer().elapsed(TimeUnit.MILLISECONDS), attributesBuilder.build());
@@ -239,12 +242,15 @@ public abstract class NettyRemotingAbstract {
     }
 
     /**
+     * 根据请求命令从processorTable中找到对应的NettyRequestProcessor，封装成RequestTask，提交给对应的messageExecutor来执行。
      * Process incoming request command issued by remote peer.
      *
      * @param ctx channel handler context.
      * @param cmd request command.
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
+        // processorTable是在BrokerController初始化的时候注册的(具体在BrokerController.initialize -> BrokerController.registerProcessor)
+
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
         final Pair<NettyRequestProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessorPair : matched;
         final int opaque = cmd.getOpaque();
@@ -252,7 +258,7 @@ public abstract class NettyRemotingAbstract {
         if (pair == null) {
             String error = " request type " + cmd.getCode() + " not supported";
             final RemotingCommand response =
-                RemotingCommand.createResponseCommand(RemotingSysResponseCode.REQUEST_CODE_NOT_SUPPORTED, error);
+                    RemotingCommand.createResponseCommand(RemotingSysResponseCode.REQUEST_CODE_NOT_SUPPORTED, error);
             response.setOpaque(opaque);
             writeResponse(ctx.channel(), cmd, response);
             log.error(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + error);
@@ -263,7 +269,7 @@ public abstract class NettyRemotingAbstract {
 
         if (pair.getObject1().rejectRequest()) {
             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_BUSY,
-                "[REJECTREQUEST]system busy, start flow control for a while");
+                    "[REJECTREQUEST]system busy, start flow control for a while");
             response.setOpaque(opaque);
             writeResponse(ctx.channel(), cmd, response);
             return;
@@ -276,25 +282,25 @@ public abstract class NettyRemotingAbstract {
         } catch (RejectedExecutionException e) {
             if ((System.currentTimeMillis() % 10000) == 0) {
                 log.warn(RemotingHelper.parseChannelRemoteAddr(ctx.channel())
-                    + ", too many requests and system thread pool busy, RejectedExecutionException "
-                    + pair.getObject2().toString()
-                    + " request code: " + cmd.getCode());
+                        + ", too many requests and system thread pool busy, RejectedExecutionException "
+                        + pair.getObject2().toString()
+                        + " request code: " + cmd.getCode());
             }
 
             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_BUSY,
-                "[OVERLOAD]system busy, start flow control for a while");
+                    "[OVERLOAD]system busy, start flow control for a while");
             response.setOpaque(opaque);
             writeResponse(ctx.channel(), cmd, response);
         } catch (Throwable e) {
             AttributesBuilder attributesBuilder = RemotingMetricsManager.newAttributesBuilder()
-                .put(LABEL_REQUEST_CODE, RemotingHelper.getRequestCodeDesc(cmd.getCode()))
-                .put(LABEL_RESULT, RESULT_PROCESS_REQUEST_FAILED);
+                    .put(LABEL_REQUEST_CODE, RemotingHelper.getRequestCodeDesc(cmd.getCode()))
+                    .put(LABEL_RESULT, RESULT_PROCESS_REQUEST_FAILED);
             RemotingMetricsManager.rpcLatency.record(cmd.getProcessTimer().elapsed(TimeUnit.MILLISECONDS), attributesBuilder.build());
         }
     }
 
     private Runnable buildProcessRequestHandler(ChannelHandlerContext ctx, RemotingCommand cmd,
-        Pair<NettyRequestProcessor, ExecutorService> pair, int opaque) {
+                                                Pair<NettyRequestProcessor, ExecutorService> pair, int opaque) {
         return () -> {
             Exception exception = null;
             RemotingCommand response;
@@ -310,6 +316,9 @@ public abstract class NettyRemotingAbstract {
                 }
 
                 if (exception == null) {
+                    // 处理请求
+//                    核心逻辑在pair.getObject1()的processRequest()方法中。那么pair.getObject1()取到的是什么呢，pair是由请求命令的code为key从processorTable中获取的，而processorTable是由上一篇文章RocketMQ笔记(十四)Broker源码分析-启动流程中介绍的BrokerController的初始化initialize方法中调用registerProcessor()进行注册的，对于发送消息，此处注册的是SendMessageProcessor，注册主要部分源码如下
+
                     response = pair.getObject1().processRequest(ctx, cmd);
                 } else {
                     response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR, null);
@@ -338,7 +347,7 @@ public abstract class NettyRemotingAbstract {
 
                 if (!cmd.isOnewayRPC()) {
                     response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR,
-                        UtilAll.exceptionSimpleDesc(e));
+                            UtilAll.exceptionSimpleDesc(e));
                     response.setOpaque(opaque);
                     writeResponse(ctx.channel(), cmd, response);
                 }
@@ -465,8 +474,8 @@ public abstract class NettyRemotingAbstract {
     }
 
     public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
-        final long timeoutMillis)
-        throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+                                          final long timeoutMillis)
+            throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
         //get the request id
         final int opaque = request.getOpaque();
 
@@ -491,7 +500,7 @@ public abstract class NettyRemotingAbstract {
             if (null == responseCommand) {
                 if (responseFuture.isSendRequestOK()) {
                     throw new RemotingTimeoutException(RemotingHelper.parseSocketAddressAddr(addr), timeoutMillis,
-                        responseFuture.getCause());
+                            responseFuture.getCause());
                 } else {
                     throw new RemotingSendRequestException(RemotingHelper.parseSocketAddressAddr(addr), responseFuture.getCause());
                 }
@@ -504,8 +513,8 @@ public abstract class NettyRemotingAbstract {
     }
 
     public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis,
-        final InvokeCallback invokeCallback)
-        throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+                                final InvokeCallback invokeCallback)
+            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         long beginStartTime = System.currentTimeMillis();
         final int opaque = request.getOpaque();
         boolean acquired = this.semaphoreAsync.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
@@ -539,11 +548,11 @@ public abstract class NettyRemotingAbstract {
                 throw new RemotingTooMuchRequestException("invokeAsyncImpl invoke too fast");
             } else {
                 String info =
-                    String.format("invokeAsyncImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d",
-                        timeoutMillis,
-                        this.semaphoreAsync.getQueueLength(),
-                        this.semaphoreAsync.availablePermits()
-                    );
+                        String.format("invokeAsyncImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d",
+                                timeoutMillis,
+                                this.semaphoreAsync.getQueueLength(),
+                                this.semaphoreAsync.availablePermits()
+                        );
                 log.warn(info);
                 throw new RemotingTimeoutException(info);
             }
@@ -582,7 +591,7 @@ public abstract class NettyRemotingAbstract {
     }
 
     public void invokeOnewayImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-        throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         request.markOnewayRPC();
         boolean acquired = this.semaphoreOneway.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
         if (acquired) {
@@ -604,10 +613,10 @@ public abstract class NettyRemotingAbstract {
                 throw new RemotingTooMuchRequestException("invokeOnewayImpl invoke too fast");
             } else {
                 String info = String.format(
-                    "invokeOnewayImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreOnewayValue: %d",
-                    timeoutMillis,
-                    this.semaphoreOneway.getQueueLength(),
-                    this.semaphoreOneway.availablePermits()
+                        "invokeOnewayImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreOnewayValue: %d",
+                        timeoutMillis,
+                        this.semaphoreOneway.getQueueLength(),
+                        this.semaphoreOneway.availablePermits()
                 );
                 log.warn(info);
                 throw new RemotingTimeoutException(info);

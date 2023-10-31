@@ -23,6 +23,9 @@ import org.apache.rocketmq.store.ConsumeQueue;
 import org.apache.rocketmq.store.StoreType;
 import org.apache.rocketmq.store.queue.BatchConsumeQueue;
 
+/**
+ * 小学存储配置类
+ */
 public class MessageStoreConfig {
 
     public static final String MULTI_PATH_SPLITTER = System.getProperty("rocketmq.broker.multiPathSplitter", ",");
@@ -189,6 +192,7 @@ public class MessageStoreConfig {
     private int maxTransferCountOnMessageInDisk = 8;
     @ImportantField
     private int accessMessageInMemoryMaxRatio = 40;
+    //可以通过messageIndexEnable属性配置打开或关闭 IndexFile 存储功能。
     @ImportantField
     private boolean messageIndexEnable = true;
     private int maxHashSlotNum = 5000000;

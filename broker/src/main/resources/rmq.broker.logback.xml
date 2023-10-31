@@ -600,58 +600,72 @@
     </appender>
 
     <logger name="RocketmqBroker" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqBrokerSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqProtection" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqProtectionSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqWaterMark" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqWaterMarkSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqCommon" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqBrokerSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqRocksDB" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqRocksDBSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqStore" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqStoreSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqStoreError" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqStoreErrorSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqTieredStore" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqTieredStoreSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqTransaction" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqTransactionSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqRebalanceLock" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqRebalanceLockSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqRemoting" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqRemotingSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqStats" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqStatsSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqCommercial" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqCommercialSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqFilter" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqFilterSiftingAppender"/>
     </logger>
 
@@ -660,28 +674,34 @@
     </logger>
 
     <logger name="RocketmqPop" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqPopSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqColdCtr" additivity="false">
         <level value="INFO"/>
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqColdCtrSiftingAppender"/>
     </logger>
 
     <logger name="RocketmqTraffic" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqTrafficSiftingAppender"/>
     </logger>
 
     <!-- Use json formatter to log metrics -->
     <logger name="io.opentelemetry.exporter.logging.otlp.OtlpJsonLoggingMetricExporter" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqBrokerMetricsSiftingAppender"/>
     </logger>
 
     <logger name="io.opentelemetry.exporter.logging.LoggingMetricExporter" additivity="false" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="RocketmqBrokerMetricsSiftingAppender"/>
     </logger>
 
     <root level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="DefaultSiftingAppender"/>
     </root>
 </configuration>

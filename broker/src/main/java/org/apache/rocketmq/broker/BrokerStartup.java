@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
@@ -52,11 +53,15 @@ public class BrokerStartup {
 
     public static BrokerController start(BrokerController controller) {
         try {
+            /**
+             * 1.创建BrokerController
+             * 2.启动BrokerController
+             */
             controller.start();
 
             String tip = String.format("The broker[%s, %s] boot success. serializeType=%s",
-                controller.getBrokerConfig().getBrokerName(), controller.getBrokerAddr(),
-                RemotingCommand.getSerializeTypeConfigInThisServer());
+                    controller.getBrokerConfig().getBrokerName(), controller.getBrokerAddr(),
+                    RemotingCommand.getSerializeTypeConfigInThisServer());
 
             if (null != controller.getBrokerConfig().getNamesrvAddr()) {
                 tip += " and name server is " + controller.getBrokerConfig().getNamesrvAddr();
@@ -91,7 +96,7 @@ public class BrokerStartup {
 
         Options options = ServerUtil.buildCommandlineOptions(new Options());
         CommandLine commandLine = ServerUtil.parseCmdLine(
-            "mqbroker", args, buildCommandlineOptions(options), new DefaultParser());
+                "mqbroker", args, buildCommandlineOptions(options), new DefaultParser());
         if (null == commandLine) {
             System.exit(-1);
         }
@@ -117,7 +122,7 @@ public class BrokerStartup {
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), brokerConfig);
         if (null == brokerConfig.getRocketmqHome()) {
             System.out.printf("Please set the %s variable in your environment " +
-                "to match the location of the RocketMQ installation", MixAll.ROCKETMQ_HOME_ENV);
+                    "to match the location of the RocketMQ installation", MixAll.ROCKETMQ_HOME_ENV);
             System.exit(-2);
         }
 
@@ -205,7 +210,7 @@ public class BrokerStartup {
         MixAll.printObjectProperties(log, messageStoreConfig);
 
         final BrokerController controller = new BrokerController(
-            brokerConfig, nettyServerConfig, nettyClientConfig, messageStoreConfig);
+                brokerConfig, nettyServerConfig, nettyClientConfig, messageStoreConfig);
 
         // Remember all configs to prevent discard
         controller.getConfiguration().registerConfig(properties);

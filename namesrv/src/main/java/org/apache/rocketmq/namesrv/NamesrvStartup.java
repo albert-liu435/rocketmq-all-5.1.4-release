@@ -40,6 +40,9 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.srvutil.ServerUtil;
 import org.apache.rocketmq.srvutil.ShutdownHookThread;
 
+/**
+ * https://blog.csdn.net/weixin_29394883/article/details/133972625
+ */
 public class NamesrvStartup {
 
     private final static Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);

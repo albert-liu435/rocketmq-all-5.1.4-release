@@ -17,9 +17,11 @@
 package org.apache.rocketmq.store;
 
 /**
+ * 清理超大磁盘上的页表
  * Clean up page-table on super large disk
  */
 public interface Swappable {
     void swapMap(int reserveNum, long forceSwapIntervalMs, long normalSwapIntervalMs);
+
     void cleanSwappedMap(long forceCleanSwapIntervalMs);
 }
