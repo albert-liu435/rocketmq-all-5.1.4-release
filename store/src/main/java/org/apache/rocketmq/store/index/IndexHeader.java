@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * IndexHead类关联的其实就是IndexFile文件的头文件相关的信息
+ * <p>
  * Index File Header. Format:
  * <pre>
  * ┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────┬───────────────────────────────┬───────────────────┬───────────────────┐
@@ -34,14 +36,23 @@ import java.util.concurrent.atomic.AtomicLong;
  * Begin Timestamp(8) + End Timestamp(8) + Begin Physical Offset(8) + End Physical Offset(8) + Hash Slot Count(4) + Index Count(4) = 40 Bytes
  */
 public class IndexHeader {
+    //IndexFile的头大小
     public static final int INDEX_HEADER_SIZE = 40;
+    //beginTimestamp：第一个索引消息落在Broker的时间戳
     private static int beginTimestampIndex = 0;
+    //endTimestamp：最后一个索引消息落在Broker的时间戳
     private static int endTimestampIndex = 8;
+    //beginPhyOffset：第一个索引消息在commitlog的偏移量；
     private static int beginPhyoffsetIndex = 16;
+    //endPhyOffset：最后一个索引消息在commitlog的偏移量；
     private static int endPhyoffsetIndex = 24;
+    //hashSlotCount：构建索引占用的槽位数
     private static int hashSlotcountIndex = 32;
+    //indexCount：构建的索引个数
     private static int indexCountIndex = 36;
     private final ByteBuffer byteBuffer;
+
+    //记录对应信息用的原子类
     private final AtomicLong beginTimestamp = new AtomicLong(0);
     private final AtomicLong endTimestamp = new AtomicLong(0);
     private final AtomicLong beginPhyOffset = new AtomicLong(0);

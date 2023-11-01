@@ -39,23 +39,39 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.store.logfile.DefaultMappedFile;
 import org.apache.rocketmq.store.logfile.MappedFile;
 
+/**
+ *  MappedFileQueue这个类的属性相对来说比较少，其中需要说的是，AllocateMappedFileService类型的字段，这个对象的作用是根据情况来决定是否需要提前创建好MappedFile对象供后续的直接使用。
+ * 而这个参数是在构造MappedFileQueue对象的时候的一个参数。只有在CommitLog中构造时才会传入AllocateMappedFileService，在ConsumeQueue并没有传入。
+ * ————————————————
+ * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+ * 原文链接：https://blog.csdn.net/szhlcy/article/details/114541473
+ */
 public class MappedFileQueue implements Swappable {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final Logger LOG_ERROR = LoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
+    //文件的存储路径
     protected final String storePath;
-
+    //映射文件大小，指的是单个文件的大小，比如CommitLog大小为1G
     protected final int mappedFileSize;
-
+    //并发线程安全队列存储映射文件
     protected final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<>();
 
     protected final AllocateMappedFileService allocateMappedFileService;
-
+    //刷新完的位置
     protected long flushedWhere = 0;
+    //提交完成的位置
     protected long committedWhere = 0;
-
+    //存储时间
     protected volatile long storeTimestamp = 0;
 
+    /**
+     *  MappedFileQueue只有一个全参构造器，分别是传入文件的存储路径storePath，单个存储文件的大小mappedFileSize和提前创建MappedFile对象的allocateMappedFileService
+     *
+     * @param storePath
+     * @param mappedFileSize
+     * @param allocateMappedFileService
+     */
     public MappedFileQueue(final String storePath, int mappedFileSize,
                            AllocateMappedFileService allocateMappedFileService) {
         this.storePath = storePath;
@@ -63,15 +79,24 @@ public class MappedFileQueue implements Swappable {
         this.allocateMappedFileService = allocateMappedFileService;
     }
 
+    /**
+     * 检查文件的是否完整，检查的方式。上一个文件的起始偏移量减去当前文件的起始偏移量，如果差值=mappedFileSize那么说明文件是完整的，否则有损坏
+     * <p>
+     * 这里检查文件是否被破坏的原理，就是检查文件的大小是不是等于前一个文件的起始偏移量和后一个文件的起始偏移量是不是等于文件大小。
+     * 而这里的起始偏移量又是在MappedFile进行获取的fileFromOffset，而这个值就是我们在构造MappedFile的时候传入的文件名转化得到的
+     */
     public void checkSelf() {
         List<MappedFile> mappedFiles = new ArrayList<>(this.mappedFiles);
+        //检查文件组是否为空
         if (!mappedFiles.isEmpty()) {
+            //对文件进行迭代，一个一个进行检查
             Iterator<MappedFile> iterator = mappedFiles.iterator();
             MappedFile pre = null;
             while (iterator.hasNext()) {
                 MappedFile cur = iterator.next();
 
                 if (pre != null) {
+                    //用当前文件的真实偏移量-上一个文件的其实偏移量 正常情况下应该等于一个文件的大小。如果不相等，说明文件存在问题
                     if (cur.getFileFromOffset() - pre.getFileFromOffset() != this.mappedFileSize) {
                         LOG_ERROR.error("[BUG]The mappedFile queue's data is damaged, the adjacent mappedFile's offset don't match. pre file {}, cur file {}",
                                 pre.getFileName(), cur.getFileName());
@@ -165,19 +190,27 @@ public class MappedFileQueue implements Swappable {
         return null;
     }
 
+    /**
+     * 根据时间戳获取文件getMappedFileByTime
+     *
+     * @param timestamp
+     * @return
+     */
     public MappedFile getMappedFileByTime(final long timestamp) {
+        //获取所有的文件映射对象MappedFile
         Object[] mfs = this.copyMappedFiles(0);
-
+        //为null说明 mappedFiles 中没有MappedFile
         if (null == mfs)
             return null;
 
         for (int i = 0; i < mfs.length; i++) {
             MappedFile mappedFile = (MappedFile) mfs[i];
+            //如果文件的最后修改时间大于等于参数时间，说文件在当前传入的时间之后进行修改了，就是需要寻找的文件
             if (mappedFile.getLastModifiedTimestamp() >= timestamp) {
                 return mappedFile;
             }
         }
-
+        //如果没有找到合适的MappedFile 就用最后一个
         return (MappedFile) mfs[mfs.length - 1];
     }
 
@@ -192,23 +225,40 @@ public class MappedFileQueue implements Swappable {
         return mfs;
     }
 
+    /**
+     * 根据偏移量截断文件
+     *
+     * @param offset
+     */
     public void truncateDirtyFiles(long offset) {
         List<MappedFile> willRemoveFiles = new ArrayList<>();
-
+        /**
+         * 如果   文件的起始偏移量>指定截断偏移量offset  那么整个文件需要删除
+         * 如果   文件的起始偏移量<指定截断偏移量offset<文件的最大偏移量  那么文件中的部分记录需要清除
+         * 如果   文件的最大偏移量<指定截断偏移量offset  那么这个文件不需要进行处理
+         */
         for (MappedFile file : this.mappedFiles) {
+            //文件的开始偏移量+文件大小= 文件尾offset
             long fileTailOffset = file.getFileFromOffset() + this.mappedFileSize;
+            //当前文件的最大偏移量大于 指定截断位置的偏移量，说明需要截断的位置就是在这个文件中
             if (fileTailOffset > offset) {
+                //如果文件初始偏移量小于指定的偏移量，说明只需要截断文件中的一部分
                 if (offset >= file.getFileFromOffset()) {
+                    //设置映射文件写的位置
                     file.setWrotePosition((int) (offset % this.mappedFileSize));
+                    //设置文件commit的位置
                     file.setCommittedPosition((int) (offset % this.mappedFileSize));
+                    //设置文件刷新的位置
                     file.setFlushedPosition((int) (offset % this.mappedFileSize));
                 } else {
+                    //如果文件的起始偏移量也比指定的偏移量大，则说明这个文件整个需要丢弃
                     file.destroy(1000);
+                    //需要删除的文件加上这个文件
                     willRemoveFiles.add(file);
                 }
             }
         }
-
+        //删除映射的文件
         this.deleteExpiredFile(willRemoveFiles);
     }
 
@@ -237,12 +287,16 @@ public class MappedFileQueue implements Swappable {
 
     /**
      * 加载文件
+     * <p>
+     *  这里的逻辑比较简单，就是根据传入的文件路径，加载对应的文件夹下面的文件，并创建文件映射，并加入到文件映射列表中去。这个方法在RocketMQ启动的时候回调用，用来加载系统中已经存在的消息日志文件。
      *
      * @return
      */
     public boolean load() {
+        //根据传入的文件保存路径storePath 来获取文件
         File dir = new File(this.storePath);
         File[] ls = dir.listFiles();
+        //文件列表不为空则进行加载
         if (ls != null) {
             return doLoad(Arrays.asList(ls));
         }
@@ -265,7 +319,7 @@ public class MappedFileQueue implements Swappable {
                 log.warn("{} size is 0, auto delete. is_ok: {}", file, ok);
                 continue;
             }
-
+            //队列映射文件的大小不等于设置的文件类型的大小，说明加载到了最后的一个文件  比如 如果是commitLog那么对于的大小应该为1G
             if (file.length() != this.mappedFileSize) {
                 log.warn(file + "\t" + file.length()
                         + " length not matched message store config value, please check it manually");
@@ -273,6 +327,7 @@ public class MappedFileQueue implements Swappable {
             }
 
             try {
+                //根据文件的路径和文件大小，创建对应的文件映射，然后加入到映射列表中
                 MappedFile mappedFile = new DefaultMappedFile(file.getPath(), mappedFileSize);
 
                 mappedFile.setWrotePosition(this.mappedFileSize);
@@ -383,8 +438,16 @@ public class MappedFileQueue implements Swappable {
         return getLastMappedFile(startOffset, true);
     }
 
+    /**
+     * 获取最后一个文件
+     * <p>
+     * 这个方法的作用基本就是获取最后一个映射文件，然后进行消息的插入，或者获取最大消息偏移量等信息。
+     *
+     * @return
+     */
     public MappedFile getLastMappedFile() {
         MappedFile[] mappedFiles = this.mappedFiles.toArray(new MappedFile[0]);
+        //如果文件队列不为空则获取最后一个文件
         return mappedFiles.length == 0 ? null : mappedFiles[mappedFiles.length - 1];
     }
 
@@ -466,11 +529,23 @@ public class MappedFileQueue implements Swappable {
         }
     }
 
+    /**
+     * 根据时间删除过期文件
+     * 这个方法被用在定期删除过去的CommitLog文件，来保证内存空间
+     *
+     * @param expiredTime
+     * @param deleteFilesInterval
+     * @param intervalForcibly
+     * @param cleanImmediately
+     * @param deleteFileBatchMax
+     * @return
+     */
     public int deleteExpiredFileByTime(final long expiredTime,
                                        final int deleteFilesInterval,
                                        final long intervalForcibly,
                                        final boolean cleanImmediately,
                                        final int deleteFileBatchMax) {
+        //获取映射文件列表
         Object[] mfs = this.copyMappedFiles(0);
 
         if (null == mfs)
@@ -480,24 +555,31 @@ public class MappedFileQueue implements Swappable {
         int deleteCount = 0;
         List<MappedFile> files = new ArrayList<>();
         int skipFileNum = 0;
+        //如果映射文件列表为空直接返回
         if (null != mfs) {
             //do check before deleting
             checkSelf();
+            //对映射文件进行遍历
             for (int i = 0; i < mfsLength; i++) {
                 MappedFile mappedFile = (MappedFile) mfs[i];
+                //文件最后的修改时间+过期时间= 文件最终能够存活的时间
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
+                //如果当前时间大于文件能够存活的最大时间，比如 当前是2021-03-18 12：00：00 ，而文件最大存活时间2021-03-18 11：00：00 就需要删除。或者调用方法的时候指定了马上删除
                 if (System.currentTimeMillis() >= liveMaxTimestamp || cleanImmediately) {
                     if (skipFileNum > 0) {
                         log.info("Delete CommitLog {} but skip {} files", mappedFile.getFileName(), skipFileNum);
                     }
+                    //删除文件，就是解除对文件的引用
                     if (mappedFile.destroy(intervalForcibly)) {
+                        //要删除的的文件加入到要删除的集合中
                         files.add(mappedFile);
+                        //增加计数
                         deleteCount++;
-
+                        //一次性最多删除的人为10
                         if (files.size() >= deleteFileBatchMax) {
                             break;
                         }
-
+                        //如果删除时间间隔大于0，并且没有循环玩，则睡眠指定的删除间隔时长后在杀出
                         if (deleteFilesInterval > 0 && (i + 1) < mfsLength) {
                             try {
                                 Thread.sleep(deleteFilesInterval);
@@ -515,11 +597,22 @@ public class MappedFileQueue implements Swappable {
             }
         }
 
+        //从文件映射队列中删除对应的文件映射
         deleteExpiredFile(files);
+        //返回删除的文件个数
 
         return deleteCount;
     }
 
+    /**
+     * 根据偏移量删除文件deleteExpiredFileByOffset
+     * <p>
+     *  按照偏移量删除文件用于删除过期的ConsumeQueue文件，因为ConsumeQueue文件中信息的记录是定长的20byte，如果偏移量小于指定的偏移量表示都是之前的消息，可以直接删除。
+     *
+     * @param offset
+     * @param unitSize
+     * @return
+     */
     public int deleteExpiredFileByOffset(long offset, int unitSize) {
         Object[] mfs = this.copyMappedFiles(0);
 
@@ -532,10 +625,13 @@ public class MappedFileQueue implements Swappable {
             for (int i = 0; i < mfsLength; i++) {
                 boolean destroy;
                 MappedFile mappedFile = (MappedFile) mfs[i];
+                //unitSize是一个文件格式占用的长度 比如ConsumeQueue中一条记录长度为20byte  这里是获取一个文件中最后一条记录的起始偏移量，
                 SelectMappedBufferResult result = mappedFile.selectMappedBuffer(this.mappedFileSize - unitSize);
                 if (result != null) {
+                    //获取文件中最后一条记录的偏移量
                     long maxOffsetInLogicQueue = result.getByteBuffer().getLong();
                     result.release();
+                    //如果最大偏移量 < 指定的偏移量，则需要删除
                     destroy = maxOffsetInLogicQueue < offset;
                     if (destroy) {
                         log.info("physic min offset " + offset + ", logics in current mappedFile max offset "
@@ -548,7 +644,7 @@ public class MappedFileQueue implements Swappable {
                     log.warn("this being not executed forever.");
                     break;
                 }
-
+                //删除文件
                 if (destroy && mappedFile.destroy(1000 * 60)) {
                     files.add(mappedFile);
                     deleteCount++;
@@ -558,6 +654,7 @@ public class MappedFileQueue implements Swappable {
             }
         }
 
+        //  删除映射文件队列中的映射文件=》
         deleteExpiredFile(files);
 
         return deleteCount;
@@ -652,6 +749,7 @@ public class MappedFileQueue implements Swappable {
     }
 
     /**
+     * 根据偏移量获取文件
      * Finds a mapped file by offset.
      *
      * @param offset                Offset.
@@ -660,9 +758,13 @@ public class MappedFileQueue implements Swappable {
      */
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
+            //获取队列中第一个映射文件
             MappedFile firstMappedFile = this.getFirstMappedFile();
+            //获取队列中最后一个映射文件
             MappedFile lastMappedFile = this.getLastMappedFile();
+            //如果不存在文件则直接返回null
             if (firstMappedFile != null && lastMappedFile != null) {
+                //如果要查找的偏移量offset不在所有的文件偏移量范围内，则打印错误日志
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
                     LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}",
                             offset,
@@ -671,18 +773,20 @@ public class MappedFileQueue implements Swappable {
                             this.mappedFileSize,
                             this.mappedFiles.size());
                 } else {
+                    //(指定Offset-第一个文件的其实偏移量)/文件大小=第几个文件夹
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
                     try {
+                        //获取指定的映射文件
                         targetFile = this.mappedFiles.get(index);
                     } catch (Exception ignored) {
                     }
-
+                    //offset在指定的映射文件中，则直接返回对应的映射文件
                     if (targetFile != null && offset >= targetFile.getFileFromOffset()
                             && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
                         return targetFile;
                     }
-
+                    //如果按索引在队列中找不到映射文件就遍历队列查找映射文件
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset()
                                 && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
@@ -690,7 +794,7 @@ public class MappedFileQueue implements Swappable {
                         }
                     }
                 }
-
+                //如果指定了没有找到文件就返回第一个映射文件，则直接返回第一个映射文件
                 if (returnFirstOnNotFound) {
                     return firstMappedFile;
                 }

@@ -18,13 +18,22 @@ package org.apache.rocketmq.store;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 引用类
+ *  在数据提交commit和刷新flush的时候都会跟这两个方法有关系。首先会获取文件的引用，在处理完之后释放。hold和release方法在MappedFile的父类ReferenceResource类中定义的
+ */
 public abstract class ReferenceResource {
+
+    //引用计数,类似引用计数法
     protected final AtomicLong refCount = new AtomicLong(1);
+    //是否可用
     protected volatile boolean available = true;
     protected volatile boolean cleanupOver = false;
     private volatile long firstShutdownTimestamp = 0;
 
     /**
+     * 文件的引用
+     * <p>
      * 在数据提交commit和刷新flush的时候都会跟这两个方法有关系。首先会获取文件的引用，在处理完之后释放。hold和release方法在MappedFile的父类ReferenceResource类中定义的
      *
      * @return
@@ -77,6 +86,12 @@ public abstract class ReferenceResource {
         return this.refCount.get();
     }
 
+    /**
+     * 清除内存映射
+     *
+     * @param currentRef
+     * @return
+     */
     public abstract boolean cleanup(final long currentRef);
 
     public boolean isCleanupOver() {

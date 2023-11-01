@@ -29,6 +29,7 @@ import java.util.Map;
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
+    //主题的名称，用于标识主题，主题名称集群内全局唯一
     private String topic;
     private int flag;
     private Map<String, String> properties;

@@ -34,6 +34,9 @@ import org.apache.rocketmq.store.TransientStorePool;
 import org.apache.rocketmq.store.config.FlushDiskType;
 
 /**
+ * https://blog.csdn.net/szhlcy/article/details/114335608
+ * <p>
+ * MapedFile类提供了顺序写、随机读、内存数据刷盘、内存清理等与文件相关的服务。
  * MapedFile是与RocketMQ的文件模块中最底层得到对象，提供了对文件记录的一些操作方法。后面就对这个类重要属性和方法进行分析。
  */
 public interface MappedFile {

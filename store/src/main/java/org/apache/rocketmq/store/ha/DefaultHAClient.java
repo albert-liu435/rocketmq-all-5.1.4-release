@@ -25,6 +25,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicReference;
+
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.utils.NetworkUtil;
@@ -33,6 +34,10 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.store.DefaultMessageStore;
 
+/**
+ * 与Slave紧密相关的HAClient
+ *  前面我们说到了只有是Salve角色的Broker才会真正的配置Master的地址，而HAClient是需要Master地址的，因此这个类真正在运行的时候只有Slave才会真正的使用到
+ */
 public class DefaultHAClient extends ServiceThread implements HAClient {
 
     /**
@@ -52,22 +57,27 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
 
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024 * 4;
+    //master地址
     private final AtomicReference<String> masterHaAddress = new AtomicReference<>();
     private final AtomicReference<String> masterAddress = new AtomicReference<>();
+    //Slave向Master发起主从同步的拉取偏移量，固定8个字节
     private final ByteBuffer reportOffset = ByteBuffer.allocate(REPORT_HEADER_SIZE);
     private SocketChannel socketChannel;
     private Selector selector;
     /**
      * last time that slave reads date from master.
      */
+    //上次同步偏移量的时间戳
     private long lastReadTimestamp = System.currentTimeMillis();
     /**
      * last time that slave reports offset to master.
      */
     private long lastWriteTimestamp = System.currentTimeMillis();
 
+    //反馈Slave当前的复制进度，commitlog文件最大偏移量
     private long currentReportedOffset = 0;
     private int dispatchPosition = 0;
+    //读缓冲大小
     private ByteBuffer byteBufferRead = ByteBuffer.allocate(READ_MAX_BUFFER_SIZE);
     private ByteBuffer byteBufferBackup = ByteBuffer.allocate(READ_MAX_BUFFER_SIZE);
     private DefaultMessageStore defaultMessageStore;
@@ -119,7 +129,7 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
                 this.socketChannel.write(this.reportOffset);
             } catch (IOException e) {
                 log.error(this.getServiceName()
-                    + "reportSlaveMaxOffset this.socketChannel.write exception", e);
+                        + "reportSlaveMaxOffset this.socketChannel.write exception", e);
                 return false;
             }
         }
@@ -152,12 +162,15 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
 
     private boolean processReadEvent() {
         int readSizeZeroTimes = 0;
+        //如果读取缓存还有没读取完，则一直读取
         while (this.byteBufferRead.hasRemaining()) {
             try {
+                //从master读取消息
                 int readSize = this.socketChannel.read(this.byteBufferRead);
                 if (readSize > 0) {
                     flowMonitor.addByteCountTransferred(readSize);
                     readSizeZeroTimes = 0;
+                    //分发请求
                     boolean result = this.dispatchReadRequest();
                     if (!result) {
                         log.error("HAClient, dispatchReadRequest error");
@@ -182,32 +195,41 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
     }
 
     private boolean dispatchReadRequest() {
+        //获取请求长度
         int readSocketPos = this.byteBufferRead.position();
 
         while (true) {
+            //获取分发的偏移差
             int diff = this.byteBufferRead.position() - this.dispatchPosition;
+            //如果偏移差大于头大小，说明存在请求体
             if (diff >= DefaultHAConnection.TRANSFER_HEADER_SIZE) {
+                //获取主master的最大偏移量
                 long masterPhyOffset = this.byteBufferRead.getLong(this.dispatchPosition);
+                //获取消息体
                 int bodySize = this.byteBufferRead.getInt(this.dispatchPosition + 8);
 
+                //获取salve的最大偏移量
                 long slavePhyOffset = this.defaultMessageStore.getMaxPhyOffset();
 
                 if (slavePhyOffset != 0) {
                     if (slavePhyOffset != masterPhyOffset) {
                         log.error("master pushed offset not equal the max phy offset in slave, SLAVE: "
-                            + slavePhyOffset + " MASTER: " + masterPhyOffset);
+                                + slavePhyOffset + " MASTER: " + masterPhyOffset);
                         return false;
                     }
                 }
 
+                //如果偏移差大于 消息头和 消息体大小。则读取消息体
                 if (diff >= (DefaultHAConnection.TRANSFER_HEADER_SIZE + bodySize)) {
                     byte[] bodyData = byteBufferRead.array();
                     int dataStart = this.dispatchPosition + DefaultHAConnection.TRANSFER_HEADER_SIZE;
 
+                    //吧消息同步到slave的 CommitLog
                     this.defaultMessageStore.appendToCommitLog(
-                        masterPhyOffset, bodyData, dataStart, bodySize);
+                            masterPhyOffset, bodyData, dataStart, bodySize);
 
                     this.byteBufferRead.position(readSocketPos);
+                    //记录分发的位置
                     this.dispatchPosition += DefaultHAConnection.TRANSFER_HEADER_SIZE + bodySize;
 
                     if (!reportSlaveMaxOffsetPlus()) {
@@ -299,6 +321,18 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
         }
     }
 
+    /**
+     * 主要的逻辑如下：
+     *
+     * 连接master，如果当前的broker角色是master，那么对应的masterAddress是空的，不会有后续逻辑。如果是slave，并且配置了master地址，则会进行连接进行后续逻辑处理
+     * 检查是否需要向master汇报当前的同步进度，如果两次同步的时间小于5s，则不进行同步。每次同步之间间隔在5s以上，这个5s是心跳连接的间隔参数为haSendHeartbeatInterval
+     * 向master 汇报当前 salve 的CommitLog的最大偏移量,并记录这次的同步时间
+     * 从master拉取日志信息，主要就是进行消息的同步，同步出问题则关闭连接
+     * 再次同步slave的偏移量，如果最新的偏移量大于已经汇报的情况下则从步骤1重头开始
+     * ————————————————
+     * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+     * 原文链接：https://blog.csdn.net/szhlcy/article/details/116055627
+     */
     @Override
     public void run() {
         log.info(this.getServiceName() + " service started");
@@ -327,10 +361,11 @@ public class DefaultHAClient extends ServiceThread implements HAClient {
                         this.waitForRunning(1000 * 2);
                         continue;
                 }
+
                 long interval = this.defaultMessageStore.now() - this.lastReadTimestamp;
                 if (interval > this.defaultMessageStore.getMessageStoreConfig().getHaHousekeepingInterval()) {
                     log.warn("AutoRecoverHAClient, housekeeping, found this connection[" + this.masterHaAddress
-                        + "] expired, " + interval);
+                            + "] expired, " + interval);
                     this.closeMaster();
                     log.warn("AutoRecoverHAClient, master not response some time, so close connection");
                 }

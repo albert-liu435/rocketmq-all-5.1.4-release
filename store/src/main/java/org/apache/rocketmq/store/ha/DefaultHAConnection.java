@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.utils.NetworkUtil;
@@ -59,20 +60,40 @@ public class DefaultHAConnection implements HAConnection {
     private FlowMonitor flowMonitor;
 
     public DefaultHAConnection(final DefaultHAService haService, final SocketChannel socketChannel) throws IOException {
+        //指定所属的 HAService
         this.haService = haService;
+        //指定的NIO的socketChannel
         this.socketChannel = socketChannel;
+        //客户端的地址
         this.clientAddress = this.socketChannel.socket().getRemoteSocketAddress().toString();
+        //这是为非阻塞
         this.socketChannel.configureBlocking(false);
+        /**
+         * 是否启动SO_LINGER
+         * SO_LINGER作用
+         * 设置函数close()关闭TCP连接时的行为。缺省close()的行为是，如果有数据残留在socket发送缓冲区中则系统将继续发送这些数据给对方，等待被确认，然后返回。
+         *
+         * https://blog.csdn.net/u012635648/article/details/80279338
+         */
         this.socketChannel.socket().setSoLinger(false, -1);
+        /**
+         * 是否开启TCP_NODELAY
+         * https://blog.csdn.net/lclwjl/article/details/80154565
+         */
         this.socketChannel.socket().setTcpNoDelay(true);
         if (NettySystemConfig.socketSndbufSize > 0) {
+            //接收缓冲的大小
             this.socketChannel.socket().setReceiveBufferSize(NettySystemConfig.socketSndbufSize);
         }
         if (NettySystemConfig.socketRcvbufSize > 0) {
+            //发送缓冲的大小
             this.socketChannel.socket().setSendBufferSize(NettySystemConfig.socketRcvbufSize);
         }
+        //端口写服务
         this.writeSocketService = new WriteSocketService(this.socketChannel);
+        //端口读服务
         this.readSocketService = new ReadSocketService(this.socketChannel);
+        //增加haService中的连接数字段
         this.haService.getConnectionCount().incrementAndGet();
         this.flowMonitor = new FlowMonitor(haService.getDefaultMessageStore().getMessageStoreConfig());
     }
@@ -149,6 +170,16 @@ public class DefaultHAConnection implements HAConnection {
             this.setDaemon(true);
         }
 
+        /**
+         *  整体的逻辑如下：
+         * <p>
+         * 每1s执行一次事件就绪选择，然后调用processReadEvent方法处理读请求，读取从服务器的拉取请求
+         * 获取slave已拉取偏移量，因为有新的从服务器反馈拉取进度，需要通知某些生产者以便返回，因为如果消息发送使用同步方式，需要等待将消息复制到从服务器，然后才返回，故这里需要唤醒相关线程去判断自己关注的消息是否已经传输完成。也就是HAService的GroupTransferService
+         * 如果读取到的字节数等于0，则重复三次，否则结束本次读请求处理；如果读取到的字节数小于0，表示连接被断开，返回false，后续会断开该连接。
+         * ————————————————
+         * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+         * 原文链接：https://blog.csdn.net/szhlcy/article/details/116055627
+         */
         @Override
         public void run() {
             log.info(this.getServiceName() + " service started");
@@ -253,6 +284,10 @@ public class DefaultHAConnection implements HAConnection {
         }
     }
 
+    /**
+     * 监听slave日志同步进度和同步日志的WriteSocketService
+     * WriteSocketService监听的是OP_WRITE事件，注册的端口就是在HAService中开启的端口。直接看对应的核心方法run方法，方法有点长这里只看看核心的部分
+     */
     class WriteSocketService extends ServiceThread {
         private final Selector selector;
         private final SocketChannel socketChannel;
@@ -271,6 +306,17 @@ public class DefaultHAConnection implements HAConnection {
             this.setDaemon(true);
         }
 
+        /**
+         * 主要的逻辑如下：
+         * <p>
+         * 如果slave进行了日志偏移量的汇报，判断是不是第一次的进行同步以及对应的同步进度。设置下一次的同步位置
+         * 检查上次同步是不是已经完成了，检查两次同步的周期是不是超过心跳间隔，如果是的则需要把心跳信息放到返回的头里面，然后进行消息同步。如果上次同步还没完成，则等待上次同步完成之后再继续
+         * 从Master本地读取CommitLog的最大偏移量，根据上次同步的位置开始从CommitLog获取日志信息，然后放到缓存中
+         * 如果缓存的大小大于单次同步的最大大小haTransferBatchSize默认是32kb，那么只同步32kb大小的日志。如果缓存为null，则等待100毫秒
+         * ————————————————
+         * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+         * 原文链接：https://blog.csdn.net/szhlcy/article/details/116055627
+         */
         @Override
         public void run() {
             log.info(this.getServiceName() + " service started");
@@ -288,9 +334,9 @@ public class DefaultHAConnection implements HAConnection {
                         if (0 == DefaultHAConnection.this.slaveRequestOffset) {
                             long masterOffset = DefaultHAConnection.this.haService.getDefaultMessageStore().getCommitLog().getMaxOffset();
                             masterOffset =
-                                masterOffset
-                                    - (masterOffset % DefaultHAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig()
-                                    .getMappedFileSizeCommitLog());
+                                    masterOffset
+                                            - (masterOffset % DefaultHAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig()
+                                            .getMappedFileSizeCommitLog());
 
                             if (masterOffset < 0) {
                                 masterOffset = 0;
@@ -302,16 +348,16 @@ public class DefaultHAConnection implements HAConnection {
                         }
 
                         log.info("master transfer data from " + this.nextTransferFromWhere + " to slave[" + DefaultHAConnection.this.clientAddress
-                            + "], and slave request " + DefaultHAConnection.this.slaveRequestOffset);
+                                + "], and slave request " + DefaultHAConnection.this.slaveRequestOffset);
                     }
 
                     if (this.lastWriteOver) {
 
                         long interval =
-                            DefaultHAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
+                                DefaultHAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
 
                         if (interval > DefaultHAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig()
-                            .getHaSendHeartbeatInterval()) {
+                                .getHaSendHeartbeatInterval()) {
 
                             // Build Header
                             this.byteBufferHeader.position(0);
@@ -331,7 +377,7 @@ public class DefaultHAConnection implements HAConnection {
                     }
 
                     SelectMappedBufferResult selectResult =
-                        DefaultHAConnection.this.haService.getDefaultMessageStore().getCommitLogData(this.nextTransferFromWhere);
+                            DefaultHAConnection.this.haService.getDefaultMessageStore().getCommitLogData(this.nextTransferFromWhere);
                     if (selectResult != null) {
                         int size = selectResult.getSize();
                         if (size > DefaultHAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig().getHaTransferBatchSize()) {
@@ -342,8 +388,8 @@ public class DefaultHAConnection implements HAConnection {
                         if (size > canTransferMaxBytes) {
                             if (System.currentTimeMillis() - lastPrintTimestamp > 1000) {
                                 log.warn("Trigger HA flow control, max transfer speed {}KB/s, current speed: {}KB/s",
-                                    String.format("%.2f", flowMonitor.maxTransferByteInSecond() / 1024.0),
-                                    String.format("%.2f", flowMonitor.getTransferredByteInSecond() / 1024.0));
+                                        String.format("%.2f", flowMonitor.maxTransferByteInSecond() / 1024.0),
+                                        String.format("%.2f", flowMonitor.getTransferredByteInSecond() / 1024.0));
                                 lastPrintTimestamp = System.currentTimeMillis();
                             }
                             size = canTransferMaxBytes;

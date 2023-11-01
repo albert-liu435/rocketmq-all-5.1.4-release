@@ -64,6 +64,21 @@ import sun.nio.ch.DirectBuffer;
  * https://www.jianshu.com/p/2aad2044980d
  * MapedFile是与RocketMQ的文件模块中最底层得到对象，提供了对文件记录的一些操作方法。后面就对这个类重要属性和方法进行分析。
  */
+
+//
+//
+//
+//
+//
+//  | IndexService      |ConsumeQueue|CommitLog |
+//  |   Index File      |   MappedFileQueue     |
+//  |               MappedFile                  |
+//  |               MappedByteBuffer            |
+//  |               磁盘                        |
+//
+//
+
+
 public class DefaultMappedFile extends AbstractMappedFile {
 
     //这里需要额外讲解的是，几个表示位置的参数。wrotePosition，committedPosition，flushedPosition。大概的关系如下wrotePosition<=committedPosition<=flushedPosition<=fileSize
@@ -207,6 +222,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
                      final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
         //从临时存储池中获取buffer
+        //创建MapedFile对象会指定他的writeBuffer属性指向的是堆外内存。
         this.writeBuffer = transientStorePool.borrowBuffer();
         this.transientStorePool = transientStorePool;
     }
@@ -310,6 +326,11 @@ public class DefaultMappedFile extends AbstractMappedFile {
         return fileChannel;
     }
 
+    /**
+     * @param byteBufferMsg
+     * @param cb
+     * @return
+     */
     public AppendMessageResult appendMessage(final ByteBuffer byteBufferMsg, final CompactionAppendMsgCallback cb) {
         assert byteBufferMsg != null;
         assert cb != null;
@@ -328,6 +349,9 @@ public class DefaultMappedFile extends AbstractMappedFile {
     }
 
     /**
+     * 拼接消息的方法
+     * <p>
+     * <p>
      * 追加消息到当前的MappedFile,并执行回调函数
      *
      * @param msg               a message to append
@@ -360,7 +384,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBatch && !((MessageExtBatch) messageExt).isInnerBatch()) {
-                //                批量消息序列化后组装映射的buffer
+                //                消息序列化后组装映射的buffer
                 // traditional batch message
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos,
                         (MessageExtBatch) messageExt, putMessageContext);
@@ -394,6 +418,12 @@ public class DefaultMappedFile extends AbstractMappedFile {
         return appendMessage(data, 0, data.length);
     }
 
+    /**
+     * 直接将二进制信息通过fileChannel拼接到文件中
+     *
+     * @param data the byte buffer to append
+     * @return
+     */
     @Override
     public boolean appendMessage(ByteBuffer data) {
         int currentPos = WROTE_POSITION_UPDATER.get(this);
@@ -401,8 +431,10 @@ public class DefaultMappedFile extends AbstractMappedFile {
 
         if ((currentPos + remaining) <= this.fileSize) {
             try {
+                //设置写的起始位置
                 this.fileChannel.position(currentPos);
                 while (data.hasRemaining()) {
+                    //写入
                     this.fileChannel.write(data);
                 }
             } catch (Throwable e) {
@@ -603,13 +635,23 @@ public class DefaultMappedFile extends AbstractMappedFile {
         return this.fileSize == WROTE_POSITION_UPDATER.get(this);
     }
 
+    /**
+     * 读取数据 指定位置和读取的长度
+     *
+     * @param pos  the given position
+     * @param size the size of the returned sub-region
+     * @return
+     */
     @Override
     public SelectMappedBufferResult selectMappedBuffer(int pos, int size) {
+        //获取提交的位置
         int readPosition = getReadPosition();
+        //如果要读取的信息在已经提交的信息中，就进行读取
         if ((pos + size) <= readPosition) {
+            //检查文件是否有效
             if (this.hold()) {
                 this.mappedByteBufferAccessCountSinceLastSwap++;
-
+                //读取数据然后返回
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
                 ByteBuffer byteBufferNew = byteBuffer.slice();
@@ -627,14 +669,23 @@ public class DefaultMappedFile extends AbstractMappedFile {
         return null;
     }
 
+    /**
+     * 读取数据 读取指定位置后的所有数据。
+     *
+     * @param pos the given position
+     * @return
+     */
     @Override
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
+        //获取文件读取的位置
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
             if (this.hold()) {
                 this.mappedByteBufferAccessCountSinceLastSwap++;
+                //创建新的缓冲区
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
+                //获取指定位置到最新提交的位置之间的数据
                 int size = readPosition - pos;
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
@@ -645,6 +696,12 @@ public class DefaultMappedFile extends AbstractMappedFile {
         return null;
     }
 
+    /**
+     * 清除内存映射
+     *
+     * @param currentRef
+     * @return
+     */
     @Override
     public boolean cleanup(final long currentRef) {
         if (this.isAvailable()) {
@@ -676,7 +733,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
         //        =》删除引用
         this.shutdown(intervalForcibly);
 
-        //已经清楚了文件的引用
+        //已经清除了文件的引用
         if (this.isCleanupOver()) {
             try {
                 long lastModified = getLastModifiedTimestamp();
