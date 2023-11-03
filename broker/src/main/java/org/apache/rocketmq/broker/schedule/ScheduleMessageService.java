@@ -17,6 +17,7 @@
 package org.apache.rocketmq.broker.schedule;
 
 import io.opentelemetry.api.common.Attributes;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -30,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.metrics.BrokerMetricsManager;
 import org.apache.rocketmq.common.ConfigManager;
@@ -61,6 +63,9 @@ import static org.apache.rocketmq.broker.metrics.BrokerMetricsConstant.LABEL_IS_
 import static org.apache.rocketmq.broker.metrics.BrokerMetricsConstant.LABEL_MESSAGE_TYPE;
 import static org.apache.rocketmq.broker.metrics.BrokerMetricsConstant.LABEL_TOPIC;
 
+/**
+ * RocketMQ中有一个专门处理topic为RMQ_SYS_SCHEDULE_TOPIC的服务类ScheduleMessageService。这个类的初始化是在DefaultMessageStore中会在RocketMQ的Broker启动的时候初始化。
+ */
 public class ScheduleMessageService extends ConfigManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
@@ -71,10 +76,10 @@ public class ScheduleMessageService extends ConfigManager {
     private static final long DELAY_FOR_A_SLEEP = 10L;
 
     private final ConcurrentMap<Integer /* level */, Long/* delay timeMillis */> delayLevelTable =
-        new ConcurrentHashMap<>(32);
+            new ConcurrentHashMap<>(32);
 
     private final ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable =
-        new ConcurrentHashMap<>(32);
+            new ConcurrentHashMap<>(32);
     private final AtomicBoolean started = new AtomicBoolean(false);
     private ScheduledExecutorService deliverExecutorService;
     private int maxDelayLevel;
@@ -83,7 +88,7 @@ public class ScheduleMessageService extends ConfigManager {
     private ScheduledExecutorService handleExecutorService;
     private final ScheduledExecutorService scheduledPersistService;
     private final Map<Integer /* level */, LinkedBlockingQueue<PutResultProcess>> deliverPendingTable =
-        new ConcurrentHashMap<>(32);
+            new ConcurrentHashMap<>(32);
     private final BrokerController brokerController;
     private final transient AtomicLong versionChangeCounter = new AtomicLong(0);
 
@@ -91,7 +96,7 @@ public class ScheduleMessageService extends ConfigManager {
         this.brokerController = brokerController;
         this.enableAsyncDeliver = brokerController.getMessageStoreConfig().isEnableScheduleAsyncDeliver();
         scheduledPersistService = ThreadUtils.newScheduledThreadPool(1,
-            new ThreadFactoryImpl("ScheduleMessageServicePersistThread", true, brokerController.getBrokerConfig()));
+                new ThreadFactoryImpl("ScheduleMessageServicePersistThread", true, brokerController.getBrokerConfig()));
     }
 
     public static int queueId2DelayLevel(final int queueId) {
@@ -216,14 +221,22 @@ public class ScheduleMessageService extends ConfigManager {
         return this.encode(false);
     }
 
+    /**
+     * ScheduleMessageService在Broker启动的时候会先调用其load方法，加载delayOffset.json文件然后加载对应的延迟级别配置。
+     *
+     * @return
+     */
     @Override
     public boolean load() {
+        //调用父类的加载文件的方法，父类会调用子类实现的configFilePath方法确定文件
         boolean result = super.load();
+        //加载成功则进行解析延迟级别配置
         result = result && this.parseDelayLevel();
+
         result = result && this.correctDelayOffset();
         return result;
     }
-    
+
     public boolean loadWhenSyncDelayOffset() {
         boolean result = super.load();
         result = result && this.parseDelayLevel();
@@ -234,8 +247,8 @@ public class ScheduleMessageService extends ConfigManager {
         try {
             for (int delayLevel : delayLevelTable.keySet()) {
                 ConsumeQueueInterface cq =
-                    brokerController.getMessageStore().getQueueStore().findOrCreateConsumeQueue(TopicValidator.RMQ_SYS_SCHEDULE_TOPIC,
-                        delayLevel2QueueId(delayLevel));
+                        brokerController.getMessageStore().getQueueStore().findOrCreateConsumeQueue(TopicValidator.RMQ_SYS_SCHEDULE_TOPIC,
+                                delayLevel2QueueId(delayLevel));
                 Long currentDelayOffset = offsetTable.get(delayLevel);
                 if (currentDelayOffset == null || cq == null) {
                     continue;
@@ -246,13 +259,13 @@ public class ScheduleMessageService extends ConfigManager {
                 if (currentDelayOffset < cqMinOffset) {
                     correctDelayOffset = cqMinOffset;
                     log.error("schedule CQ offset invalid. offset={}, cqMinOffset={}, cqMaxOffset={}, queueId={}",
-                        currentDelayOffset, cqMinOffset, cqMaxOffset, cq.getQueueId());
+                            currentDelayOffset, cqMinOffset, cqMaxOffset, cq.getQueueId());
                 }
 
                 if (currentDelayOffset > cqMaxOffset) {
                     correctDelayOffset = cqMaxOffset;
                     log.error("schedule CQ offset invalid. offset={}, cqMinOffset={}, cqMaxOffset={}, queueId={}",
-                        currentDelayOffset, cqMinOffset, cqMaxOffset, cq.getQueueId());
+                            currentDelayOffset, cqMinOffset, cqMaxOffset, cq.getQueueId());
                 }
                 if (correctDelayOffset != currentDelayOffset) {
                     log.error("correct delay offset [ delayLevel {} ] from {} to {}", delayLevel, currentDelayOffset, correctDelayOffset);
@@ -268,15 +281,16 @@ public class ScheduleMessageService extends ConfigManager {
 
     @Override
     public String configFilePath() {
+        //获取`delayOffset.json`文件
         return StorePathConfigHelper.getDelayOffsetStorePath(this.brokerController.getMessageStore().getMessageStoreConfig()
-            .getStorePathRootDir());
+                .getStorePathRootDir());
     }
 
     @Override
     public void decode(String jsonString) {
         if (jsonString != null) {
             DelayOffsetSerializeWrapper delayOffsetSerializeWrapper =
-                DelayOffsetSerializeWrapper.fromJson(jsonString, DelayOffsetSerializeWrapper.class);
+                    DelayOffsetSerializeWrapper.fromJson(jsonString, DelayOffsetSerializeWrapper.class);
             if (delayOffsetSerializeWrapper != null) {
                 this.offsetTable.putAll(delayOffsetSerializeWrapper.getOffsetTable());
                 // For compatible
@@ -296,26 +310,33 @@ public class ScheduleMessageService extends ConfigManager {
     }
 
     public boolean parseDelayLevel() {
+        //不同延迟级别的基础时间长度，单位为毫秒
         HashMap<String, Long> timeUnitTable = new HashMap<>();
         timeUnitTable.put("s", 1000L);
         timeUnitTable.put("m", 1000L * 60);
         timeUnitTable.put("h", 1000L * 60 * 60);
         timeUnitTable.put("d", 1000L * 60 * 60 * 24);
-
+        //获取延迟配置
         String levelString = this.brokerController.getMessageStoreConfig().getMessageDelayLevel();
         try {
+            //进行分割解析，分割符号为空格
             String[] levelArray = levelString.split(" ");
             for (int i = 0; i < levelArray.length; i++) {
                 String value = levelArray[i];
                 String ch = value.substring(value.length() - 1);
+                //获取对应的延迟毫秒数
                 Long tu = timeUnitTable.get(ch);
 
                 int level = i + 1;
+                //寻找最大的延迟等级
                 if (level > this.maxDelayLevel) {
                     this.maxDelayLevel = level;
                 }
+                //获取延迟的时长
                 long num = Long.parseLong(value.substring(0, value.length() - 1));
+                //计算真正的时长
                 long delayTimeMillis = tu * num;
+                //保存到延迟级别缓存中
                 this.delayLevelTable.put(level, delayTimeMillis);
                 if (this.enableAsyncDeliver) {
                     this.deliverPendingTable.put(level, new LinkedBlockingQueue<>());
@@ -337,7 +358,7 @@ public class ScheduleMessageService extends ConfigManager {
 
         TopicFilterType topicFilterType = MessageExt.parseTopicFilterType(msgInner.getSysFlag());
         long tagsCodeValue =
-            MessageExtBrokerInner.tagsString2tagsCode(topicFilterType, msgInner.getTags());
+                MessageExtBrokerInner.tagsString2tagsCode(topicFilterType, msgInner.getTags());
         msgInner.setTagsCode(tagsCodeValue);
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgExt.getProperties()));
 
@@ -397,8 +418,8 @@ public class ScheduleMessageService extends ConfigManager {
 
         public void executeOnTimeUp() {
             ConsumeQueueInterface cq =
-                ScheduleMessageService.this.brokerController.getMessageStore().getConsumeQueue(TopicValidator.RMQ_SYS_SCHEDULE_TOPIC,
-                    delayLevel2QueueId(delayLevel));
+                    ScheduleMessageService.this.brokerController.getMessageStore().getConsumeQueue(TopicValidator.RMQ_SYS_SCHEDULE_TOPIC,
+                            delayLevel2QueueId(delayLevel));
 
             if (cq == null) {
                 this.scheduleNextTimerTask(this.offset, DELAY_FOR_A_WHILE);
@@ -410,10 +431,10 @@ public class ScheduleMessageService extends ConfigManager {
                 long resetOffset;
                 if ((resetOffset = cq.getMinOffsetInQueue()) > this.offset) {
                     log.error("schedule CQ offset invalid. offset={}, cqMinOffset={}, queueId={}",
-                        this.offset, resetOffset, cq.getQueueId());
+                            this.offset, resetOffset, cq.getQueueId());
                 } else if ((resetOffset = cq.getMaxOffsetInQueue()) < this.offset) {
                     log.error("schedule CQ offset invalid. offset={}, cqMaxOffset={}, queueId={}",
-                        this.offset, resetOffset, cq.getQueueId());
+                            this.offset, resetOffset, cq.getQueueId());
                 } else {
                     resetOffset = this.offset;
                 }
@@ -433,7 +454,7 @@ public class ScheduleMessageService extends ConfigManager {
                     if (!cqUnit.isTagsCodeValid()) {
                         //can't find ext content.So re compute tags code.
                         log.error("[BUG] can't find consume queue extend file content!addr={}, offsetPy={}, sizePy={}",
-                            tagsCode, offsetPy, sizePy);
+                                tagsCode, offsetPy, sizePy);
                         long msgStoreTime = ScheduleMessageService.this.brokerController.getMessageStore().getCommitLog().pickupStoreTimestamp(offsetPy, sizePy);
                         tagsCode = computeDeliverTimestamp(delayLevel, msgStoreTime);
                     }
@@ -460,7 +481,7 @@ public class ScheduleMessageService extends ConfigManager {
                     MessageExtBrokerInner msgInner = ScheduleMessageService.this.messageTimeUp(msgExt);
                     if (TopicValidator.RMQ_SYS_TRANS_HALF_TOPIC.equals(msgInner.getTopic())) {
                         log.error("[BUG] the real topic of schedule msg is {}, discard the msg. msg={}",
-                            msgInner.getTopic(), msgInner);
+                                msgInner.getTopic(), msgInner);
                         continue;
                     }
 
@@ -487,11 +508,11 @@ public class ScheduleMessageService extends ConfigManager {
 
         public void scheduleNextTimerTask(long offset, long delay) {
             ScheduleMessageService.this.deliverExecutorService.schedule(new DeliverDelayedMessageTimerTask(
-                this.delayLevel, offset), delay, TimeUnit.MILLISECONDS);
+                    this.delayLevel, offset), delay, TimeUnit.MILLISECONDS);
         }
 
         private boolean syncDeliver(MessageExtBrokerInner msgInner, String msgId, long offset, long offsetPy,
-            int sizePy) {
+                                    int sizePy) {
             PutResultProcess resultProcess = deliverMessage(msgInner, msgId, offset, offsetPy, sizePy, false);
             PutMessageResult result = resultProcess.get();
             boolean sendStatus = result != null && result.getPutMessageStatus() == PutMessageStatus.PUT_OK;
@@ -502,16 +523,16 @@ public class ScheduleMessageService extends ConfigManager {
         }
 
         private boolean asyncDeliver(MessageExtBrokerInner msgInner, String msgId, long offset, long offsetPy,
-            int sizePy) {
+                                     int sizePy) {
             Queue<PutResultProcess> processesQueue = ScheduleMessageService.this.deliverPendingTable.get(this.delayLevel);
 
             //Flow Control
             int currentPendingNum = processesQueue.size();
             int maxPendingLimit = brokerController.getMessageStoreConfig()
-                .getScheduleAsyncDeliverMaxPendingLimit();
+                    .getScheduleAsyncDeliverMaxPendingLimit();
             if (currentPendingNum > maxPendingLimit) {
                 log.warn("Asynchronous deliver triggers flow control, " +
-                    "currentPendingNum={}, maxPendingLimit={}", currentPendingNum, maxPendingLimit);
+                        "currentPendingNum={}, maxPendingLimit={}", currentPendingNum, maxPendingLimit);
                 return false;
             }
 
@@ -528,19 +549,19 @@ public class ScheduleMessageService extends ConfigManager {
         }
 
         private PutResultProcess deliverMessage(MessageExtBrokerInner msgInner, String msgId, long offset,
-            long offsetPy, int sizePy, boolean autoResend) {
+                                                long offsetPy, int sizePy, boolean autoResend) {
             CompletableFuture<PutMessageResult> future =
-                brokerController.getEscapeBridge().asyncPutMessage(msgInner);
+                    brokerController.getEscapeBridge().asyncPutMessage(msgInner);
             return new PutResultProcess()
-                .setTopic(msgInner.getTopic())
-                .setDelayLevel(this.delayLevel)
-                .setOffset(offset)
-                .setPhysicOffset(offsetPy)
-                .setPhysicSize(sizePy)
-                .setMsgId(msgId)
-                .setAutoResend(autoResend)
-                .setFuture(future)
-                .thenProcess();
+                    .setTopic(msgInner.getTopic())
+                    .setDelayLevel(this.delayLevel)
+                    .setOffset(offset)
+                    .setPhysicOffset(offsetPy)
+                    .setPhysicSize(sizePy)
+                    .setMsgId(msgId)
+                    .setAutoResend(autoResend)
+                    .setFuture(future)
+                    .thenProcess();
         }
     }
 
@@ -554,7 +575,7 @@ public class ScheduleMessageService extends ConfigManager {
         @Override
         public void run() {
             LinkedBlockingQueue<PutResultProcess> pendingQueue =
-                ScheduleMessageService.this.deliverPendingTable.get(this.delayLevel);
+                    ScheduleMessageService.this.deliverPendingTable.get(this.delayLevel);
 
             PutResultProcess putResultProcess;
             while ((putResultProcess = pendingQueue.peek()) != null) {
@@ -592,7 +613,7 @@ public class ScheduleMessageService extends ConfigManager {
         private void scheduleNextTask() {
             if (isStarted()) {
                 ScheduleMessageService.this.handleExecutorService
-                    .schedule(new HandlePutResultTask(this.delayLevel), DELAY_FOR_A_SLEEP, TimeUnit.MILLISECONDS);
+                        .schedule(new HandlePutResultTask(this.delayLevel), DELAY_FOR_A_SLEEP, TimeUnit.MILLISECONDS);
             }
         }
     }
@@ -695,7 +716,7 @@ public class ScheduleMessageService extends ConfigManager {
 
             this.future.exceptionally(e -> {
                 log.error("ScheduleMessageService put message exceptionally, info: {}",
-                    PutResultProcess.this.toString(), e);
+                        PutResultProcess.this.toString(), e);
 
                 onException();
                 return null;
@@ -721,10 +742,10 @@ public class ScheduleMessageService extends ConfigManager {
                 ScheduleMessageService.this.brokerController.getBrokerStatsManager().incGroupGetSize(MixAll.SCHEDULE_CONSUMER_GROUP, TopicValidator.RMQ_SYS_SCHEDULE_TOPIC, result.getAppendMessageResult().getWroteBytes());
 
                 Attributes attributes = BrokerMetricsManager.newAttributesBuilder()
-                    .put(LABEL_TOPIC, TopicValidator.RMQ_SYS_SCHEDULE_TOPIC)
-                    .put(LABEL_CONSUMER_GROUP, MixAll.SCHEDULE_CONSUMER_GROUP)
-                    .put(LABEL_IS_SYSTEM, true)
-                    .build();
+                        .put(LABEL_TOPIC, TopicValidator.RMQ_SYS_SCHEDULE_TOPIC)
+                        .put(LABEL_CONSUMER_GROUP, MixAll.SCHEDULE_CONSUMER_GROUP)
+                        .put(LABEL_IS_SYSTEM, true)
+                        .build();
                 BrokerMetricsManager.messagesOutTotal.add(result.getAppendMessageResult().getMsgNum(), attributes);
                 BrokerMetricsManager.throughputOutTotal.add(result.getAppendMessageResult().getWroteBytes(), attributes);
 
@@ -733,10 +754,10 @@ public class ScheduleMessageService extends ConfigManager {
                 ScheduleMessageService.this.brokerController.getBrokerStatsManager().incBrokerPutNums(this.topic, result.getAppendMessageResult().getMsgNum());
 
                 attributes = BrokerMetricsManager.newAttributesBuilder()
-                    .put(LABEL_TOPIC, topic)
-                    .put(LABEL_MESSAGE_TYPE, TopicMessageType.DELAY.getMetricsValue())
-                    .put(LABEL_IS_SYSTEM, TopicValidator.isSystemTopic(topic))
-                    .build();
+                        .put(LABEL_TOPIC, topic)
+                        .put(LABEL_MESSAGE_TYPE, TopicMessageType.DELAY.getMetricsValue())
+                        .put(LABEL_IS_SYSTEM, TopicValidator.isSystemTopic(topic))
+                        .build();
                 BrokerMetricsManager.messagesInTotal.add(result.getAppendMessageResult().getMsgNum(), attributes);
                 BrokerMetricsManager.throughputInTotal.add(result.getAppendMessageResult().getWroteBytes(), attributes);
                 BrokerMetricsManager.messageSize.record(result.getAppendMessageResult().getWroteBytes() / result.getAppendMessageResult().getMsgNum(), attributes);
@@ -796,29 +817,29 @@ public class ScheduleMessageService extends ConfigManager {
 
         public boolean need2Blocked() {
             int maxResendNum2Blocked = ScheduleMessageService.this.brokerController.getMessageStore().getMessageStoreConfig()
-                .getScheduleAsyncDeliverMaxResendNum2Blocked();
+                    .getScheduleAsyncDeliverMaxResendNum2Blocked();
             return this.resendCount.get() > maxResendNum2Blocked;
         }
 
         public boolean need2Skip() {
             int maxResendNum2Blocked = ScheduleMessageService.this.brokerController.getMessageStore().getMessageStoreConfig()
-                .getScheduleAsyncDeliverMaxResendNum2Blocked();
+                    .getScheduleAsyncDeliverMaxResendNum2Blocked();
             return this.resendCount.get() > maxResendNum2Blocked * 2;
         }
 
         @Override
         public String toString() {
             return "PutResultProcess{" +
-                "topic='" + topic + '\'' +
-                ", offset=" + offset +
-                ", physicOffset=" + physicOffset +
-                ", physicSize=" + physicSize +
-                ", delayLevel=" + delayLevel +
-                ", msgId='" + msgId + '\'' +
-                ", autoResend=" + autoResend +
-                ", resendCount=" + resendCount +
-                ", status=" + status +
-                '}';
+                    "topic='" + topic + '\'' +
+                    ", offset=" + offset +
+                    ", physicOffset=" + physicOffset +
+                    ", physicSize=" + physicSize +
+                    ", delayLevel=" + delayLevel +
+                    ", msgId='" + msgId + '\'' +
+                    ", autoResend=" + autoResend +
+                    ", resendCount=" + resendCount +
+                    ", status=" + status +
+                    '}';
         }
     }
 

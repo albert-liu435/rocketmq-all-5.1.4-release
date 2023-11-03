@@ -211,12 +211,17 @@ public class DefaultMessageStore implements MessageStore {
 
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
                                final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig, final ConcurrentMap<String, TopicConfig> topicConfigTable) throws IOException {
+        //消息到达监听器，这个跟PullRequestHoldService一起使用的，消息到达后调用PullRequestHoldService中的notifyMessageArriving方法
         this.messageArrivingListener = messageArrivingListener;
+        //broker配置
         this.brokerConfig = brokerConfig;
+        //消息存储配置
         this.messageStoreConfig = messageStoreConfig;
         this.aliveReplicasNum = messageStoreConfig.getTotalReplicas();
+        //broker状态管理类，统计broker相关信息，比如消息数量，topic数量等
         this.brokerStatsManager = brokerStatsManager;
         this.topicConfigTable = topicConfigTable;
+        //提前主动申请内存文件服务类，用于CommitLog
         this.allocateMappedFileService = new AllocateMappedFileService(this);
         if (messageStoreConfig.isEnableDLegerCommitLog()) {
             this.commitLog = new DLedgerCommitLog(this);
@@ -226,13 +231,19 @@ public class DefaultMessageStore implements MessageStore {
 
         this.consumeQueueStore = new ConsumeQueueStore(this, this.messageStoreConfig);
 
+        //将ConsumeQueue逻辑队列刷盘的服务类，1秒刷一次，最多尝试3次
         this.flushConsumeQueueService = new FlushConsumeQueueService();
+        //清理物理文件服务，定期清理72小时之前的物理文件。
         this.cleanCommitLogService = new CleanCommitLogService();
+        //清理逻辑文件服务，定期清理在逻辑队列中的物理偏移量小于commitlog中的最小物理偏移量的数据，同时也清理Index中物理偏移量小于commitlog中的最小物理偏移量的数据
         this.cleanConsumeQueueService = new CleanConsumeQueueService();
         this.correctLogicOffsetService = new CorrectLogicOffsetService();
+        //存储层内部统计服务
         this.storeStatsService = new StoreStatsService(getBrokerIdentity());
+        //index文件的存储
         this.indexService = new IndexService(this);
 
+        //用于commitlog数据的主备同步
         if (!messageStoreConfig.isEnableDLegerCommitLog() && !this.messageStoreConfig.isDuplicationEnable()) {
             if (brokerConfig.isEnableControllerMode()) {
                 this.haService = new AutoSwitchHAService();
@@ -246,6 +257,7 @@ public class DefaultMessageStore implements MessageStore {
             }
         }
 
+        //用于转发CommitLog中消息到ConsumeQueue中
         if (!messageStoreConfig.isEnableBuildConsumeQueueConcurrently()) {
             this.reputMessageService = new ReputMessageService();
         } else {
@@ -254,6 +266,7 @@ public class DefaultMessageStore implements MessageStore {
 
         this.transientStorePool = new TransientStorePool(messageStoreConfig.getTransientStorePoolSize(), messageStoreConfig.getMappedFileSizeCommitLog());
 
+        //用于监控延迟消息，并到期后执行，吧延迟消息写入CommitLog
         this.scheduledExecutorService =
                 ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread", getBrokerIdentity()));
 
@@ -265,6 +278,22 @@ public class DefaultMessageStore implements MessageStore {
             this.compactionService = new CompactionService(commitLog, this, compactionStore);
             this.dispatcherList.addLast(new CommitLogDispatcherCompaction(compactionService));
         }
+
+//        //启动allocateMappedFileService
+//        this.allocateMappedFileService.start();
+//        //启动indexService
+//        this.indexService.start();
+//        //消息转存任务的集合
+//        this.dispatcherList = new LinkedList<>();
+//        //负责把CommitLog消息转存到ConsumeQueue文件
+//        this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
+//        //负责吧CommitLog消息转存到Index文件
+//        this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
+//        //在保存日志数据文件的根目录 {user.home}/store 路径下 创建一个一个名字为lock 的文件
+//        File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
+//        MappedFile.ensureDirOK(file.getParent());
+//        //创建根目录文件的随机文件流，权限是读写
+//        lockFile = new RandomAccessFile(file, "rw");
 
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
         UtilAll.ensureDirOK(file.getParent());

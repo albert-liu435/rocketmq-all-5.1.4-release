@@ -31,8 +31,13 @@ public class MessageStoreConfig {
     public static final String MULTI_PATH_SPLITTER = System.getProperty("rocketmq.broker.multiPathSplitter", ",");
 
     //The root directory in which the log data is kept
+//    @ImportantField
+//    private String storePathRootDir = System.getProperty("user.home") + File.separator + "store";
+
+    //TODO
     @ImportantField
-    private String storePathRootDir = System.getProperty("user.home") + File.separator + "store";
+    private String storePathRootDir ="C:\\work\\NewIDEAWorkSpace\\rookie-project\\github\\rocketmq-all-5.1.4-source-release\\home\\store";
+
 
     //The directory in which the commitlog is kept
     @ImportantField

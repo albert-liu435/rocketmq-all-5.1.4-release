@@ -17,6 +17,9 @@
 
 package org.apache.rocketmq.remoting.protocol;
 
+/**
+ * 响应编码
+ */
 public class ResponseCode extends RemotingSysResponseCode {
 
     public static final int FLUSH_DISK_TIMEOUT = 10;
@@ -120,7 +123,7 @@ public class ResponseCode extends RemotingSysResponseCode {
     public static final int CONTROLLER_MASTER_STILL_EXIST = 2011;
 
     public static final int CONTROLLER_ELECT_MASTER_FAILED = 2012;
-    
+
     public static final int CONTROLLER_ALTER_SYNC_STATE_SET_FAILED = 2013;
 
     public static final int CONTROLLER_BROKER_ID_INVALID = 2014;

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
+
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
@@ -50,6 +51,12 @@ import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 
 /**
+ * DefaultMQProducer（该类是线程安全的。在配置并启动完成后可在多个线程间安全共享）类是应用用来投递消息的入口，开箱即用，可通过无参构造方法快速创建一个生产者。主要负责消息的发送，
+ * 支持同步/异步/oneway的发送方式，这些发送方式均支持批量发送。可以通过该类提供的getter/setter方法，调整发送者的参数。DefaultMQProducer提供了多个send方法，每个send方法略有不同
+ * ————————————————
+ * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+ * 原文链接：https://blog.csdn.net/szhlcy/article/details/119579185
+ * <p>
  * This class is the entry point for applications intending to send messages. </p>
  * <p>
  * It's fine to tune fields which exposes getter/setter methods, but keep in mind, all of them should work well out of
@@ -65,19 +72,21 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 生产者的内部默认实现
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
     private final Logger logger = LoggerFactory.getLogger(DefaultMQProducer.class);
     private final Set<Integer> retryResponseCodes = new CopyOnWriteArraySet<>(Arrays.asList(
-        ResponseCode.TOPIC_NOT_EXIST,
-        ResponseCode.SERVICE_NOT_AVAILABLE,
-        ResponseCode.SYSTEM_ERROR,
-        ResponseCode.NO_PERMISSION,
-        ResponseCode.NO_BUYER_ID,
-        ResponseCode.NOT_IN_CURRENT_UNIT
+            ResponseCode.TOPIC_NOT_EXIST,
+            ResponseCode.SERVICE_NOT_AVAILABLE,
+            ResponseCode.SYSTEM_ERROR,
+            ResponseCode.NO_PERMISSION,
+            ResponseCode.NO_BUYER_ID,
+            ResponseCode.NOT_IN_CURRENT_UNIT
     ));
 
     /**
+     * 生产者分组
      * Producer group conceptually aggregates all producer instances of exactly same role, which is particularly
      * important when transactional messages are involved. </p>
      * <p>
@@ -88,26 +97,33 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private String producerGroup;
 
     /**
+     * 在发送消息时，自动创建服务器不存在的topic
      * Just for testing or demo program
      */
     private String createTopicKey = TopicValidator.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
     /**
+     * 创建topic时默认的队列数量
      * Number of queues to create per default topic.
      */
     private volatile int defaultTopicQueueNums = 4;
 
     /**
+     * 发送消息的超时时间
      * Timeout for sending messages.
      */
     private int sendMsgTimeout = 3000;
 
     /**
+     * 压缩消息体的阈值
+     * <p>
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
      */
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
     /**
+     * 同步模式下内部尝试发送消息的最大次数
+     * <p>
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode. </p>
      * <p>
      * This may potentially cause message duplication which is up to application developers to resolve.
@@ -115,6 +131,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private int retryTimesWhenSendFailed = 2;
 
     /**
+     * 异步模式下内部尝试发送消息的最大次数
+     * <p>
      * Maximum number of retry to perform internally before claiming sending failure in asynchronous mode. </p>
      * <p>
      * This may potentially cause message duplication which is up to application developers to resolve.
@@ -122,16 +140,22 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private int retryTimesWhenSendAsyncFailed = 2;
 
     /**
+     * 是否在内部发送失败时重试另一个broker
+     * <p>
      * Indicate whether to retry another broker on sending failure internally.
      */
     private boolean retryAnotherBrokerWhenNotStoreOK = false;
 
     /**
+     * 消息的最大长度
+     * <p>
      * Maximum allowed message body size in bytes.
      */
     private int maxMessageSize = 1024 * 1024 * 4; // 4M
 
     /**
+     * 消息追踪器。使用rcpHook来追踪消息
+     * <p>
      * Interface of asynchronous transfer data
      */
     private TraceDispatcher traceDispatcher = null;
@@ -163,6 +187,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private int backPressureForAsyncSendSize = 100 * 1024 * 1024;
 
     /**
+     * 由默认参数值创建一个生产者
+     * <p>
      * Default constructor.
      */
     public DefaultMQProducer() {
@@ -197,7 +223,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *                             trace topic name.
      */
     public DefaultMQProducer(final String producerGroup, RPCHook rpcHook, boolean enableMsgTrace,
-        final String customizedTraceTopic) {
+                             final String customizedTraceTopic) {
         this(null, producerGroup, rpcHook, enableMsgTrace, customizedTraceTopic);
     }
 
@@ -258,6 +284,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
+     * 使用指定的分组名及自定义hook创建一个生产者，并设置是否开启消息追踪及追踪topic的名称
+     * <p>
      * Constructor specifying namespace, producer group, RPC hook, enabled msgTrace flag and customized trace topic
      * name.
      *
@@ -269,21 +297,26 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *                             trace topic name.
      */
     public DefaultMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook,
-        boolean enableMsgTrace, final String customizedTraceTopic) {
+                             boolean enableMsgTrace, final String customizedTraceTopic) {
         this.namespace = namespace;
+        //消息组
         this.producerGroup = producerGroup;
+        //消息发送实现类
         defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);
         produceAccumulator = MQClientManager.getInstance().getOrCreateProduceAccumulator(this);
         //if client open the message trace feature
+        //如果开启了消息轨迹功能，增加对应的RPC钩子方法来追踪消息
         if (enableMsgTrace) {
             try {
                 AsyncTraceDispatcher dispatcher = new AsyncTraceDispatcher(producerGroup, TraceDispatcher.Type.PRODUCE, customizedTraceTopic, rpcHook);
                 dispatcher.setHostProducer(this.defaultMQProducerImpl);
                 traceDispatcher = dispatcher;
+                //发送消息钩子
                 this.defaultMQProducerImpl.registerSendMessageHook(
-                    new SendMessageTraceHookImpl(traceDispatcher));
+                        new SendMessageTraceHookImpl(traceDispatcher));
+                //结束事务钩子
                 this.defaultMQProducerImpl.registerEndTransactionHook(
-                    new EndTransactionTraceHookImpl(traceDispatcher));
+                        new EndTransactionTraceHookImpl(traceDispatcher));
             } catch (Throwable e) {
                 logger.error("system mqtrace hook init failed ,maybe can't send msg trace data");
             }
@@ -308,11 +341,14 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void start() throws MQClientException {
+        //设置生产者的producerGroup，也就是分组名，如果没有设置，会按照一定的规律生成一个
         this.setProducerGroup(withNamespace(this.producerGroup));
+        //调用生产者默认实现DefaultMQProducerImpl的启动方法
         this.defaultMQProducerImpl.start();
         if (this.produceAccumulator != null) {
             this.produceAccumulator.start();
         }
+        //如果消息轨迹相关的消息分发类不是null，说明启用来消息轨迹分析，这里需要进行启动。不对消息轨迹的逻辑进行分析
         if (null != traceDispatcher) {
             try {
                 traceDispatcher.start(this.getNamesrvAddr(), this.getAccessChannel());
@@ -369,6 +405,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
+     * 同步方法发送消息，具体发送到主题中的哪个消息队列由负载算法决定
      * Send message in synchronous mode. This method returns only when the sending procedure totally completes. </p>
      *
      * <strong>Warn:</strong> this method has internal retry-mechanism, that is, internal implementation will retry
@@ -385,7 +422,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(
-        Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         if (this.getAutoBatch() && !(msg instanceof MessageBatch)) {
             return sendByAccumulator(msg, null, null);
@@ -408,7 +445,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(Message msg,
-        long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                           long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.send(msg, timeout);
     }
@@ -430,7 +467,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void send(Message msg,
-        SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException {
+                     SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         try {
             if (this.getAutoBatch() && !(msg instanceof MessageBatch)) {
@@ -455,7 +492,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void send(Message msg, SendCallback sendCallback, long timeout)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.send(msg, sendCallback, timeout);
     }
@@ -489,7 +526,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(Message msg, MessageQueue mq)
-        throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         mq = queueWithNamespace(mq);
         if (this.getAutoBatch() && !(msg instanceof MessageBatch)) {
@@ -514,7 +551,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(Message msg, MessageQueue mq, long timeout)
-        throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.send(msg, queueWithNamespace(mq), timeout);
     }
@@ -531,7 +568,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void send(Message msg, MessageQueue mq, SendCallback sendCallback)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         mq = queueWithNamespace(mq);
         try {
@@ -546,19 +583,21 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
+     * 同步方法发送消息，具体发送到主题中的哪个消息队列由负载算法决定
      * Same to {@link #send(Message, SendCallback)} with target message queue and send timeout specified.
      *
-     * @param msg          Message to send.
-     * @param mq           Target message queue.
-     * @param sendCallback Callback to execute on sending completed, either successful or unsuccessful.
-     * @param timeout      Send timeout.
+     * @param msg          Message to send. 消息对象
+     * @param mq           Target message queue. 发送指定指定的queue
+     * @param sendCallback Callback to execute on sending completed, either successful or unsuccessful. 发送回调方法
+     * @param timeout      Send timeout. 超时时间
      * @throws MQClientException    if there is any client error.
      * @throws RemotingException    if there is any network-tier error.
      * @throws InterruptedException if the sending thread is interrupted.
      */
     @Override
     public void send(Message msg, MessageQueue mq, SendCallback sendCallback, long timeout)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
+
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.send(msg, queueWithNamespace(mq), sendCallback, timeout);
     }
@@ -574,7 +613,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void sendOneway(Message msg,
-        MessageQueue mq) throws MQClientException, RemotingException, InterruptedException {
+                           MessageQueue mq) throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.sendOneway(msg, queueWithNamespace(mq));
     }
@@ -594,7 +633,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(Message msg, MessageQueueSelector selector, Object arg)
-        throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         MessageQueue mq = this.defaultMQProducerImpl.invokeMessageQueueSelector(msg, selector, arg, this.getSendMsgTimeout());
         mq = queueWithNamespace(mq);
@@ -621,7 +660,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public SendResult send(Message msg, MessageQueueSelector selector, Object arg, long timeout)
-        throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.send(msg, selector, arg, timeout);
     }
@@ -639,7 +678,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void send(Message msg, MessageQueueSelector selector, Object arg, SendCallback sendCallback)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         try {
             MessageQueue mq = this.defaultMQProducerImpl.invokeMessageQueueSelector(msg, selector, arg, this.getSendMsgTimeout());
@@ -668,13 +707,13 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void send(Message msg, MessageQueueSelector selector, Object arg, SendCallback sendCallback, long timeout)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.send(msg, selector, arg, sendCallback, timeout);
     }
 
     public SendResult sendDirect(Message msg, MessageQueue mq,
-        SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
+                                 SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
         // send in sync mode
         if (sendCallback == null) {
             if (mq == null) {
@@ -693,7 +732,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     public SendResult sendByAccumulator(Message msg, MessageQueue mq,
-        SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
+                                        SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
         // check whether it can batch
         if (!canBatch(msg)) {
             return sendDirect(msg, mq, sendCallback);
@@ -727,7 +766,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public Message request(final Message msg, final long timeout) throws RequestTimeoutException, MQClientException,
-        RemotingException, MQBrokerException, InterruptedException {
+            RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.request(msg, timeout);
     }
@@ -750,7 +789,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void request(final Message msg, final RequestCallback requestCallback, final long timeout)
-        throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
+            throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.request(msg, requestCallback, timeout);
     }
@@ -771,8 +810,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public Message request(final Message msg, final MessageQueueSelector selector, final Object arg,
-        final long timeout) throws MQClientException, RemotingException, MQBrokerException,
-        InterruptedException, RequestTimeoutException {
+                           final long timeout) throws MQClientException, RemotingException, MQBrokerException,
+            InterruptedException, RequestTimeoutException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.request(msg, selector, arg, timeout);
     }
@@ -792,8 +831,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void request(final Message msg, final MessageQueueSelector selector, final Object arg,
-        final RequestCallback requestCallback, final long timeout) throws MQClientException, RemotingException,
-        InterruptedException, MQBrokerException {
+                        final RequestCallback requestCallback, final long timeout) throws MQClientException, RemotingException,
+            InterruptedException, MQBrokerException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.request(msg, selector, arg, requestCallback, timeout);
     }
@@ -812,7 +851,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public Message request(final Message msg, final MessageQueue mq, final long timeout)
-        throws MQClientException, RemotingException, MQBrokerException, InterruptedException, RequestTimeoutException {
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException, RequestTimeoutException {
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.request(msg, mq, timeout);
     }
@@ -831,7 +870,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void request(final Message msg, final MessageQueue mq, final RequestCallback requestCallback, long timeout)
-        throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
+            throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.request(msg, mq, requestCallback, timeout);
     }
@@ -848,7 +887,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void sendOneway(Message msg, MessageQueueSelector selector, Object arg)
-        throws MQClientException, RemotingException, InterruptedException {
+            throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
         this.defaultMQProducerImpl.sendOneway(msg, selector, arg);
     }
@@ -864,8 +903,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public TransactionSendResult sendMessageInTransaction(Message msg, LocalTransactionExecuter tranExecuter,
-        final Object arg)
-        throws MQClientException {
+                                                          final Object arg)
+            throws MQClientException {
         throw new RuntimeException("sendMessageInTransaction not implement, please use TransactionMQProducer class");
     }
 
@@ -879,7 +918,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public TransactionSendResult sendMessageInTransaction(Message msg,
-        Object arg) throws MQClientException {
+                                                          Object arg) throws MQClientException {
         throw new RuntimeException("sendMessageInTransaction not implement, please use TransactionMQProducer class");
     }
 
@@ -895,7 +934,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum,
-        Map<String, String> attributes) throws MQClientException {
+                            Map<String, String> attributes) throws MQClientException {
         createTopic(key, withNamespace(newTopic), queueNum, 0, null);
     }
 
@@ -913,7 +952,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag,
-        Map<String, String> attributes) throws MQClientException {
+                            Map<String, String> attributes) throws MQClientException {
         this.defaultMQProducerImpl.createTopic(key, withNamespace(newTopic), queueNum, topicSysFlag);
     }
 
@@ -990,7 +1029,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public MessageExt viewMessage(
-        String offsetMsgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+            String offsetMsgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         return this.defaultMQProducerImpl.viewMessage(offsetMsgId);
     }
 
@@ -1011,7 +1050,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public QueryResult queryMessage(String topic, String key, int maxNum, long begin, long end)
-        throws MQClientException, InterruptedException {
+            throws MQClientException, InterruptedException {
         return this.defaultMQProducerImpl.queryMessage(withNamespace(topic), key, maxNum, begin, end);
     }
 
@@ -1031,7 +1070,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public MessageExt viewMessage(String topic,
-        String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+                                  String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         try {
             return this.viewMessage(msgId);
         } catch (Exception ignored) {
@@ -1041,50 +1080,50 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     @Override
     public SendResult send(
-        Collection<Message> msgs) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+            Collection<Message> msgs) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         return this.defaultMQProducerImpl.send(batch(msgs));
     }
 
     @Override
     public SendResult send(Collection<Message> msgs,
-        long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                           long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         return this.defaultMQProducerImpl.send(batch(msgs), timeout);
     }
 
     @Override
     public SendResult send(Collection<Message> msgs,
-        MessageQueue messageQueue) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                           MessageQueue messageQueue) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         return this.defaultMQProducerImpl.send(batch(msgs), messageQueue);
     }
 
     @Override
     public SendResult send(Collection<Message> msgs, MessageQueue messageQueue,
-        long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                           long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         return this.defaultMQProducerImpl.send(batch(msgs), messageQueue, timeout);
     }
 
     @Override
     public void send(Collection<Message> msgs,
-        SendCallback sendCallback) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                     SendCallback sendCallback) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         this.defaultMQProducerImpl.send(batch(msgs), sendCallback);
     }
 
     @Override
     public void send(Collection<Message> msgs, SendCallback sendCallback,
-        long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                     long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         this.defaultMQProducerImpl.send(batch(msgs), sendCallback, timeout);
     }
 
     @Override
     public void send(Collection<Message> msgs, MessageQueue mq,
-        SendCallback sendCallback) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                     SendCallback sendCallback) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         this.defaultMQProducerImpl.send(batch(msgs), queueWithNamespace(mq), sendCallback);
     }
 
     @Override
     public void send(Collection<Message> msgs, MessageQueue mq,
-        SendCallback sendCallback,
-        long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+                     SendCallback sendCallback,
+                     long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         this.defaultMQProducerImpl.send(batch(msgs), queueWithNamespace(mq), sendCallback, timeout);
     }
 

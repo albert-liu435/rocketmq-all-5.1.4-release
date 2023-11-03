@@ -20,6 +20,7 @@ import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.common.message.Message;
+
 import java.nio.charset.StandardCharsets;
 
 public class Producer {
@@ -31,17 +32,21 @@ public class Producer {
 
     public static void main(String[] args) throws MQClientException, InterruptedException {
 
+        // 创建指定分组名的生产者
         DefaultMQProducer producer = new DefaultMQProducer(PRODUCER_GROUP);
 
         // Uncomment the following line while debugging, namesrvAddr should be set to your local address
         producer.setNamesrvAddr(DEFAULT_NAMESRVADDR);
 
-
+        // 启动生产者
         producer.start();
         for (int i = 0; i < 128; i++) {
             try {
+                // 构建消息
                 Message msg = new Message(TOPIC, TAG, "OrderID188", "Hello world".getBytes(StandardCharsets.UTF_8));
+                // 同步发送
                 SendResult sendResult = producer.send(msg);
+                // 打印发送结果
                 System.out.printf("%s%n", sendResult);
             } catch (Exception e) {
                 e.printStackTrace();

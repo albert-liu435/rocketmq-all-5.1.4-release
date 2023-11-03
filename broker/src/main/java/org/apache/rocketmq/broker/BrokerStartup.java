@@ -48,13 +48,22 @@ public class BrokerStartup {
     public static final SystemConfigFileHelper CONFIG_FILE_HELPER = new SystemConfigFileHelper();
 
     public static void main(String[] args) {
+
+//        ## nameserver地址 设置为本地
+//#（设置nameServer的ip:port）
+//namesrvAddr = 127.0.0.1:9876
+//## 这个master节点的ip地址 设置为本地
+        //本地环境问题，不然没有办法创建topic,也可以将其写到配置文件中，如
+        System.setProperty(MixAll.NAMESRV_ADDR_PROPERTY, "127.0.0.1:9876");
+
+        //创建createBrokerController然后启动
         start(createBrokerController(args));
     }
 
     public static BrokerController start(BrokerController controller) {
         try {
             /**
-             * 1.创建BrokerController
+             *
              * 2.启动BrokerController
              */
             controller.start();
@@ -66,7 +75,7 @@ public class BrokerStartup {
             if (null != controller.getBrokerConfig().getNamesrvAddr()) {
                 tip += " and name server is " + controller.getBrokerConfig().getNamesrvAddr();
             }
-
+            //日志打印相关
             log.info(tip);
             System.out.printf("%s%n", tip);
             return controller;
@@ -85,6 +94,7 @@ public class BrokerStartup {
     }
 
     public static BrokerController buildBrokerController(String[] args) throws Exception {
+        //MQ的版本号
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
 
         final BrokerConfig brokerConfig = new BrokerConfig();
@@ -242,6 +252,7 @@ public class BrokerStartup {
     public static BrokerController createBrokerController(String[] args) {
         try {
             BrokerController controller = buildBrokerController(args);
+            //初始化操作
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
