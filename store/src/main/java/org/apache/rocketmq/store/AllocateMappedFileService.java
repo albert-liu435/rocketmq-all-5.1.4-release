@@ -36,6 +36,8 @@ import org.apache.rocketmq.store.logfile.MappedFile;
 
 /**
  * https://blog.csdn.net/usagoole/article/details/126394486
+ * https://www.cnblogs.com/tera/p/16035291.html
+ * 异步创建mappedFile的服务
  * <p>
  * 提前创建MappedFile服务线程类,启动线程在DefaultMessageStore类中
  * AllocateMappedFileService用于提前创建一个MappedFile和下一个MappedFile
@@ -63,18 +65,34 @@ public class AllocateMappedFileService extends ServiceThread {
         this.messageStore = messageStore;
     }
 
+    /**
+     * 异步创建 MappedFile
+     * <p>
+     * 因此对于AllocateMappedFileService.putRequestAndReturnMappedFile，主要工作也是2步：
+     * 1.将“创建mappedFile”的请求放入队列中
+     * 2.等待异步线程实际创建完mappedFile
+     *
+     * @param nextFilePath
+     * @param nextNextFilePath
+     * @param fileSize
+     * @return
+     */
     public MappedFile putRequestAndReturnMappedFile(String nextFilePath, String nextNextFilePath, int fileSize) {
+
         int canSubmitRequests = 2;
+
         if (this.messageStore.isTransientStorePoolEnable()) {
             if (this.messageStore.getMessageStoreConfig().isFastFailIfNoBufferInStorePool()
                     && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole()) { //if broker is slave, don't fast fail even no buffer in pool
                 canSubmitRequests = this.messageStore.remainTransientStoreBufferNumbs() - this.requestQueue.size();
             }
         }
-
+        //创建mappedFile的请求，
         AllocateRequest nextReq = new AllocateRequest(nextFilePath, fileSize);
+        //将其放入ConcurrentHashMap中，主要用于并发判断，保证不会创建重复的mappedFile
         boolean nextPutOK = this.requestTable.putIfAbsent(nextFilePath, nextReq) == null;
 
+        //如果map添加成功，就可以将request放入队列中，实际创建mappedFile的线程也是从该queue中获取request
         if (nextPutOK) {
             if (canSubmitRequests <= 0) {
                 log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " +
@@ -82,6 +100,7 @@ public class AllocateMappedFileService extends ServiceThread {
                 this.requestTable.remove(nextFilePath);
                 return null;
             }
+
             boolean offerOK = this.requestQueue.offer(nextReq);
             if (!offerOK) {
                 log.warn("never expected here, add a request to preallocate queue failed");
@@ -113,6 +132,7 @@ public class AllocateMappedFileService extends ServiceThread {
         try {
             if (result != null) {
                 messageStore.getPerfCounter().startTick("WAIT_MAPFILE_TIME_MS");
+                //因为是异步创建，所以这里需要await，等待mappedFile被异步创建成功
                 boolean waitOK = result.getCountDownLatch().await(waitTimeOut, TimeUnit.MILLISECONDS);
                 messageStore.getPerfCounter().endTick("WAIT_MAPFILE_TIME_MS");
                 if (!waitOK) {
@@ -120,6 +140,7 @@ public class AllocateMappedFileService extends ServiceThread {
                     return null;
                 } else {
                     this.requestTable.remove(nextFilePath);
+                    //返回创建好的mappedFile
                     return result.getMappedFile();
                 }
             } else {
@@ -132,6 +153,11 @@ public class AllocateMappedFileService extends ServiceThread {
         return null;
     }
 
+    /**
+     * 获取服务名称
+     *
+     * @return
+     */
     @Override
     public String getServiceName() {
         if (messageStore != null && messageStore.getBrokerConfig().isInBrokerContainer()) {
@@ -151,8 +177,12 @@ public class AllocateMappedFileService extends ServiceThread {
         }
     }
 
+    /**
+     * 此线程在DefaultMessageStore创建时启动
+     */
     public void run() {
         log.info(this.getServiceName() + " service started");
+        // 是否关闭
 
         while (!this.isStopped() && this.mmapOperation()) {
 
@@ -163,12 +193,20 @@ public class AllocateMappedFileService extends ServiceThread {
     /**
      * 此线程在DefaultMessageStore创建时启动
      * 仅被外部线程中断，将返回false
+     * <p>
+     * 因此对于mmapOperation创建mappedFile，主要工作为4步：
+     * 1.从队列中获取putRequestAndReturnMappedFile方法存放的request
+     * 2.根据是否启用对外内存，分支创建mappedFile
+     * 3.预热mappedFile
+     * 4.唤醒putRequestAndReturnMappedFile方法中的等待线程
+     * <p>
      * Only interrupted by the external thread, will return false
      */
     private boolean mmapOperation() {
         boolean isSuccess = false;
         AllocateRequest req = null;
         try {
+            //从队列中拿request
             req = this.requestQueue.take();
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
             if (null == expectedRequest) {
@@ -187,15 +225,19 @@ public class AllocateMappedFileService extends ServiceThread {
 
                 MappedFile mappedFile;
                 //如果启用了临时存储池
+                //判断是否采用堆外内存
                 if (messageStore.isTransientStorePoolEnable()) {
                     try {
+                        //如果开启了堆外内存，rocketmq允许外部注入自定义的MappedFile实现
                         mappedFile = ServiceLoader.load(MappedFile.class).iterator().next();
                         mappedFile.init(req.getFilePath(), req.getFileSize(), messageStore.getTransientStorePool());
                     } catch (RuntimeException e) {
+                        //如果没有自定义实现，那么就采用默认的实现
                         log.warn("Use default implementation.");
                         mappedFile = new DefaultMappedFile(req.getFilePath(), req.getFileSize(), messageStore.getTransientStorePool());
                     }
                 } else {
+                    //如果未采用堆外内存，那么就直接采用默认实现
                     mappedFile = new DefaultMappedFile(req.getFilePath(), req.getFileSize());
                 }
 
@@ -211,6 +253,7 @@ public class AllocateMappedFileService extends ServiceThread {
                         .getMappedFileSizeCommitLog()
                         &&
                         this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
+                    //这里会预热文件，这里涉及到了系统的底层调用
                     mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(),
                             this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
                 }
@@ -235,15 +278,20 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         } finally {
             if (req != null && isSuccess)
+                //无论是否创建成功，都要唤醒putRequestAndReturnMappedFile方法中的等待线程
                 req.getCountDownLatch().countDown();
         }
         return true;
     }
 
+    /**
+     * 请求信息
+     */
     static class AllocateRequest implements Comparable<AllocateRequest> {
         // Full file path
         private String filePath;
         private int fileSize;
+        //为0表示MappedFile创建完成
         private CountDownLatch countDownLatch = new CountDownLatch(1);
         private volatile MappedFile mappedFile = null;
 
@@ -283,7 +331,9 @@ public class AllocateMappedFileService extends ServiceThread {
         public void setMappedFile(MappedFile mappedFile) {
             this.mappedFile = mappedFile;
         }
-
+        /**
+         * fileSize大的优先级高，文件大小相同，文件的offset越小优先级越高
+         */
         public int compareTo(AllocateRequest other) {
             if (this.fileSize < other.fileSize)
                 return 1;

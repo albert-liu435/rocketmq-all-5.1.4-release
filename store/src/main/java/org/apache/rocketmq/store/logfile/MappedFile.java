@@ -134,6 +134,7 @@ public interface MappedFile {
     boolean appendMessage(byte[] data, int offset, int length);
 
     /**
+     * 返回文件的offset
      * Returns the global offset of the current {code MappedFile}, it's a long value of the file name.
      *
      * @return the offset of this file

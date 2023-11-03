@@ -901,6 +901,11 @@ public class CommitLog implements Swappable {
     }
 
     /**
+     * 因此对于Commitlog.asyncPutMessage来说，主要的工作就是2步：
+     * 1.获取或者创建一个MappedFile
+     * 2.调用appendMessage进行存储
+     * <p>
+     * <p>
      * 添加消息putMessage和putMessages
      *  putMessage和putMessages都是添加消息到CommitLog的方法，只不过一个是添加单个消息，一个是添加多个消息的。这里只讲解添加单个消息的，添加多个消息的大家可以自行查看源码。逻辑步骤如下：
      * <p>
@@ -1015,6 +1020,7 @@ public class CommitLog implements Swappable {
             msg.setEncodedBuff(putMessageThreadLocal.getEncoder().getEncoderBuffer());
             PutMessageContext putMessageContext = new PutMessageContext(topicQueueKey);
 
+            //可能会有多个线程并发请求，虽然支持集群，但是对于每个单独的broker都是本地存储，所以内存锁就足够了
             putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
             try {
 
@@ -1027,7 +1033,9 @@ public class CommitLog implements Swappable {
                     msg.setStoreTimestamp(beginLockTimestamp);
                 }
 
+                //如果文件为空，或者已经存满，则创建一个新的commitlog文件
                 if (null == mappedFile || mappedFile.isFull()) {
+
                     mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
                     if (isCloseReadAhead()) {
                         setFileReadMode(mappedFile, LibC.MADV_RANDOM);
@@ -1040,6 +1048,7 @@ public class CommitLog implements Swappable {
                 }
 
                 //映射文件中添加消息，这里的appendMessageCallback是消息拼接对象，拼接过程不分析
+                //调用底层的mappedFile进行出处，但是注意此时还没有刷盘
                 result = mappedFile.appendMessage(msg, this.appendMessageCallback, putMessageContext);
                 switch (result.getStatus()) {
                     case PUT_OK:
@@ -1145,6 +1154,7 @@ public class CommitLog implements Swappable {
 
         long elapsedTimeInLock = 0;
         MappedFile unlockMappedFile = null;
+
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
 
         long currOffset;
@@ -1489,6 +1499,10 @@ public class CommitLog implements Swappable {
     }
 
     /**
+     * 因此对于CommitRealTimeService，工作主要分2步：
+     * 1.如果是使用了堆外内存，那么调用fileChannel的刷盘
+     * 2.如果非堆外内存，那么调用mappedByteBuffer的刷盘
+     * <p>
      * 消息提交
      * CommitRealTimeService主要就是定时的把临时存储池中的消息commit到FileChannel中，便于下次flush刷盘操作。而这个类只有在开启临时存储池的时候才会有用。
      */
@@ -1930,6 +1944,21 @@ public class CommitLog implements Swappable {
             this.msgStoreItemMemory = ByteBuffer.allocate(END_FILE_MIN_BLANK_LENGTH);
         }
 
+        /**
+         * 1.将消息编码
+         * 2.将编码后的消息写入buffer中，可以是writerBuffer或者mappedByteBuffer
+         * <p>
+         * 此时虽然字节流已经写入了buffer中，但是对于堆外内存，此时数据还仅存在于内存中，而对于mappedByteBuffer，虽然会有系统线程定时刷数据落盘，
+         * 但是这并非我们可以控，因此也只能假设还未落盘。为了保证数据能落盘，rocketmq还有一个异步刷盘的线程，接下去再来看下异步刷盘是如何处理的。
+         * 查看CommitLog的构造函数，其中有3个service，分别负责同步刷盘、异步刷盘和堆外内存写入fileChann
+         *
+         * @param fileFromOffset
+         * @param byteBuffer
+         * @param maxBlank
+         * @param msgInner
+         * @param putMessageContext
+         * @return
+         */
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
                                             final MessageExtBrokerInner msgInner, PutMessageContext putMessageContext) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
@@ -2008,6 +2037,7 @@ public class CommitLog implements Swappable {
 
             final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
             CommitLog.this.getMessageStore().getPerfCounter().startTick("WRITE_MEMORY_TIME_MS");
+            //写入buffer中，如果启用了对外内存，那么就会写入外部传入的writerBuffer，否则直接写入mappedByteBuffer中
             // Write messages to the queue buffer
             byteBuffer.put(preEncodeBuffer);
             CommitLog.this.getMessageStore().getPerfCounter().endTick("WRITE_MEMORY_TIME_MS");
@@ -2106,6 +2136,9 @@ public class CommitLog implements Swappable {
 
     }
 
+    /**
+     * 刷盘管理器的默认实现
+     */
     class DefaultFlushManager implements FlushManager {
         //刷盘的任务类
         private final FlushCommitLogService flushCommitLogService;
@@ -2114,12 +2147,15 @@ public class CommitLog implements Swappable {
         private final FlushCommitLogService commitRealTimeService;
 
         public DefaultFlushManager() {
+            //同步刷盘
             if (FlushDiskType.SYNC_FLUSH == CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
                 this.flushCommitLogService = new CommitLog.GroupCommitService();
             } else {
+                //异步刷盘
                 this.flushCommitLogService = new CommitLog.FlushRealTimeService();
             }
 
+            //将对外内存的数据写入fileChannel
             this.commitRealTimeService = new CommitLog.CommitRealTimeService();
         }
 

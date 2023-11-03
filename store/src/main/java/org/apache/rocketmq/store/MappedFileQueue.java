@@ -358,14 +358,23 @@ public class MappedFileQueue implements Swappable {
         return 0;
     }
 
+    /**
+     * 获取最后一个文件
+     *
+     * @param startOffset
+     * @param needCreate
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
 
+        //如果为null,
         if (mappedFileLast == null) {
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
+        //
         if (mappedFileLast != null && mappedFileLast.isFull()) {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
@@ -403,6 +412,12 @@ public class MappedFileQueue implements Swappable {
         return false;
     }
 
+    /**
+     * 尝试创建MappedFile
+     *
+     * @param createOffset
+     * @return
+     */
     public MappedFile tryCreateMappedFile(long createOffset) {
         String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
         String nextNextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset
@@ -410,13 +425,22 @@ public class MappedFileQueue implements Swappable {
         return doCreateMappedFile(nextFilePath, nextNextFilePath);
     }
 
+    /**
+     * 尝试创建MappedFile
+     *
+     * @param nextFilePath
+     * @param nextNextFilePath
+     * @return
+     */
     protected MappedFile doCreateMappedFile(String nextFilePath, String nextNextFilePath) {
         MappedFile mappedFile = null;
 
+        //如果异步服务对象不为空，那么就采用异步创建文件的方式
         if (this.allocateMappedFileService != null) {
             mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath,
                     nextNextFilePath, this.mappedFileSize);
         } else {
+            //否则就同步创建
             try {
                 mappedFile = new DefaultMappedFile(nextFilePath, this.mappedFileSize);
             } catch (IOException e) {
@@ -434,6 +458,12 @@ public class MappedFileQueue implements Swappable {
         return mappedFile;
     }
 
+    /**
+     * 获取最后一个文件
+     *
+     * @param startOffset
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset) {
         return getLastMappedFile(startOffset, true);
     }

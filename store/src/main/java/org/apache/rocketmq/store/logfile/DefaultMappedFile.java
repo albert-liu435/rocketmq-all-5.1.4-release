@@ -220,10 +220,14 @@ public class DefaultMappedFile extends AbstractMappedFile {
     @Override
     public void init(final String fileName, final int fileSize,
                      final TransientStorePool transientStorePool) throws IOException {
+        //这个重载的init方法
         init(fileName, fileSize);
+        //不同就是这里的writeBuffer会被赋值，后续写入操作会优先
+        //写入writeBuffer中
         //从临时存储池中获取buffer
         //创建MapedFile对象会指定他的writeBuffer属性指向的是堆外内存。
         this.writeBuffer = transientStorePool.borrowBuffer();
+        //记录transientStorePool主要为了释放时归还借用的ByteBuffer
         this.transientStorePool = transientStorePool;
     }
 
@@ -540,6 +544,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
          *
          * writeBuffer 不为  null，说明用的是临时存储池，使用的堆外内存，那么这个时候需要先把信息提交到fileChannel中
          */
+        //如果为空，说明不是堆外内存，就不需要任何操作，只需等待刷盘即可
         if (writeBuffer == null) {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
             return WROTE_POSITION_UPDATER.get(this);
@@ -552,6 +557,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
         } else if (this.isAbleToCommit(commitLeastPages)) {
             //检查当前文件是不是有效，就是当前文件还存在引用
             if (this.hold()) {
+                //如果是堆外内存，那么需要做commit
                 commit0();
                 //引用次数减1
                 this.release();
@@ -578,10 +584,12 @@ public class DefaultMappedFile extends AbstractMappedFile {
         if (writePos - lastCommittedPosition > 0) {
             try {
                 //获取ByteBuffer
+                //获取堆外内存
                 ByteBuffer byteBuffer = writeBuffer.slice();
                 byteBuffer.position(lastCommittedPosition);
                 byteBuffer.limit(writePos);
                 this.fileChannel.position(lastCommittedPosition);
+                //写入fileChannel
                 this.fileChannel.write(byteBuffer);
                 COMMITTED_POSITION_UPDATER.set(this, writePos);
             } catch (Throwable e) {
