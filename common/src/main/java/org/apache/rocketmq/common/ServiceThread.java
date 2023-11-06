@@ -34,6 +34,7 @@ public abstract class ServiceThread implements Runnable {
     protected Thread thread;
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
+    //服务类是否停止
     protected volatile boolean stopped = false;
     protected boolean isDaemon = false;
 
@@ -107,6 +108,11 @@ public abstract class ServiceThread implements Runnable {
         }
     }
 
+    /**
+     * 等待运行
+     *
+     * @param interval
+     */
     protected void waitForRunning(long interval) {
         if (hasNotified.compareAndSet(true, false)) {
             this.onWaitEnd();

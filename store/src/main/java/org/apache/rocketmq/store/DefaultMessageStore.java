@@ -113,36 +113,50 @@ import org.apache.rocketmq.store.stats.BrokerStatsManager;
 import org.apache.rocketmq.store.timer.TimerMessageStore;
 import org.apache.rocketmq.store.util.PerfCounter;
 
+/**
+ * 默认的消息存储类
+ */
 public class DefaultMessageStore implements MessageStore {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     public final PerfCounter.Ticks perfs = new PerfCounter.Ticks(LOGGER);
 
+    //消息存储配置类
     private final MessageStoreConfig messageStoreConfig;
+    //commitLog文件管理类
     // CommitLog
     private final CommitLog commitLog;
-
+    //消费队列存储类
     private final ConsumeQueueStore consumeQueueStore;
 
+    //flush ConsumeQueue
     private final FlushConsumeQueueService flushConsumeQueueService;
 
+    //清除CommitLog文件
     private final CleanCommitLogService cleanCommitLogService;
 
+    //清除ConsumeQueue文件
     private final CleanConsumeQueueService cleanConsumeQueueService;
 
     private final CorrectLogicOffsetService correctLogicOffsetService;
 
+    //索引类
     private final IndexService indexService;
 
     private final AllocateMappedFileService allocateMappedFileService;
 
+    //
     private ReputMessageService reputMessageService;
 
+    //高可用
     private HAService haService;
 
     // CompactionLog
+    //压缩存储
     private CompactionStore compactionStore;
 
+
+    //压缩服务类
     private CompactionService compactionService;
 
     private final StoreStatsService storeStatsService;
@@ -152,13 +166,20 @@ public class DefaultMessageStore implements MessageStore {
     private final RunningFlags runningFlags = new RunningFlags();
     private final SystemClock systemClock = new SystemClock();
 
+    /**
+     * 定时调度服务类
+     */
     private final ScheduledExecutorService scheduledExecutorService;
+    /**
+     * broker 状态管理类
+     */
     private final BrokerStatsManager brokerStatsManager;
     private final MessageArrivingListener messageArrivingListener;
     private final BrokerConfig brokerConfig;
 
     private volatile boolean shutdown = true;
 
+    //检查点
     private StoreCheckpoint storeCheckpoint;
     private TimerMessageStore timerMessageStore;
 
@@ -341,6 +362,8 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     /**
+     * 进行文件加载
+     *
      * @throws IOException
      */
     @Override
@@ -2139,6 +2162,12 @@ public class DefaultMessageStore implements MessageStore {
         return this.topicConfigTable;
     }
 
+    /**
+     * 根据topic获取topic配置信息
+     *
+     * @param topic
+     * @return
+     */
     public Optional<TopicConfig> getTopicConfig(String topic) {
         if (this.topicConfigTable == null) {
             return Optional.empty();
@@ -2187,9 +2216,13 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 清除 CommitLog 服务
+     */
     class CleanCommitLogService {
 
         private final static int MAX_MANUAL_DELETE_FILE_TIMES = 20;
+        //磁盘文件报警率
         private final String diskSpaceWarningLevelRatio =
                 System.getProperty("rocketmq.broker.diskSpaceWarningLevelRatio", "");
 
@@ -2204,6 +2237,7 @@ public class DefaultMessageStore implements MessageStore {
         private int forceCleanFailedTimes = 0;
 
         double getDiskSpaceWarningLevelRatio() {
+            //默认为0.9
             double finalDiskSpaceWarningLevelRatio;
             if ("".equals(diskSpaceWarningLevelRatio)) {
                 finalDiskSpaceWarningLevelRatio = DefaultMessageStore.this.getMessageStoreConfig().getDiskSpaceWarningLevelRatio() / 100.0;
@@ -2246,15 +2280,21 @@ public class DefaultMessageStore implements MessageStore {
 
         public void run() {
             try {
+                //删除过期文件
                 this.deleteExpiredFiles();
+                //删除hanged文件
                 this.reDeleteHangedFile();
             } catch (Throwable e) {
                 DefaultMessageStore.LOGGER.warn(this.getServiceName() + " service has exception. ", e);
             }
         }
 
+        /**
+         * 删除过期文件
+         */
         private void deleteExpiredFiles() {
             int deleteCount = 0;
+            //间隔
             long fileReservedTime = DefaultMessageStore.this.getMessageStoreConfig().getFileReservedTime();
             int deletePhysicFilesInterval = DefaultMessageStore.this.getMessageStoreConfig().getDeleteCommitLogFilesInterval();
             int destroyMappedFileIntervalForcibly = DefaultMessageStore.this.getMessageStoreConfig().getDestroyMapedFileIntervalForcibly();
@@ -2632,21 +2672,33 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 刷新ConsumeQueue服务类
+     */
     class FlushConsumeQueueService extends ServiceThread {
         private static final int RETRY_TIMES_OVER = 3;
+        //上次flush的时间
         private long lastFlushTimestamp = 0;
 
+        /**
+         * 刷新
+         *
+         * @param retryTimes 重试次数
+         */
         private void doFlush(int retryTimes) {
+            //flush 页数
             int flushConsumeQueueLeastPages = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueLeastPages();
-
+            //
             if (retryTimes == RETRY_TIMES_OVER) {
                 flushConsumeQueueLeastPages = 0;
             }
 
             long logicsMsgTimestamp = 0;
 
+
             int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval();
             long currentTimeMillis = System.currentTimeMillis();
+            //
             if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval)) {
                 this.lastFlushTimestamp = currentTimeMillis;
                 flushConsumeQueueLeastPages = 0;
@@ -2659,6 +2711,7 @@ public class DefaultMessageStore implements MessageStore {
                 for (ConsumeQueueInterface cq : maps.values()) {
                     boolean result = false;
                     for (int i = 0; i < retryTimes && !result; i++) {
+                        //进行flush操作
                         result = DefaultMessageStore.this.consumeQueueStore.flush(cq, flushConsumeQueueLeastPages);
                     }
                 }
@@ -2672,6 +2725,7 @@ public class DefaultMessageStore implements MessageStore {
                 if (logicsMsgTimestamp > 0) {
                     DefaultMessageStore.this.getStoreCheckpoint().setLogicsMsgTimestamp(logicsMsgTimestamp);
                 }
+                //检查点flush
                 DefaultMessageStore.this.getStoreCheckpoint().flush();
             }
         }
@@ -2682,6 +2736,7 @@ public class DefaultMessageStore implements MessageStore {
 
             while (!this.isStopped()) {
                 try {
+                    //flush间隔
                     int interval = DefaultMessageStore.this.getMessageStoreConfig().getFlushIntervalConsumeQueue();
                     this.waitForRunning(interval);
                     this.doFlush(1);
@@ -2777,6 +2832,9 @@ public class DefaultMessageStore implements MessageStore {
 
     }
 
+    /**
+     *
+     */
     class ReputMessageService extends ServiceThread {
 
         protected volatile long reputFromOffset = 0;

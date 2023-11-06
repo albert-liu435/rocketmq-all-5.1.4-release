@@ -57,6 +57,17 @@ import org.apache.rocketmq.store.timer.TimerMessageStore;
  * ————————————————
  * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
  * 原文链接：https://blog.csdn.net/szhlcy/article/details/115146311
+ * <p>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
+ * 每个ConsumeQueue都有一个id，id 的值为0到TopicConfig配置的队列数量。比如某个Topic的消费队列数量为4，那么四个ConsumeQueue的id就分别为0、1、2、3。
+ * <p>
+ * ConsumeQueue是不负责存储消息的，只是负责记录它所属Topic的消息在CommitLog中的偏移量，这样当消费者从Broker拉取消息的时候，就可以快速根据偏移量定位到消息。
+ * <p>
+ * ConsumeQueue本身同样是利用MappedFileQueue进行记录偏移量信息的
  */
 public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -609,6 +620,12 @@ public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
         return lastOffset;
     }
 
+    /**
+     * 进行flush操作
+     *
+     * @param flushLeastPages the minimum number of pages to be flushed
+     * @return
+     */
     @Override
     public boolean flush(final int flushLeastPages) {
         boolean result = this.mappedFileQueue.flush(flushLeastPages);

@@ -699,6 +699,11 @@ public class UtilAll {
         }
     }
 
+    /**
+     * 清除映射缓冲区
+     *
+     * @param buffer
+     */
     public static void cleanBuffer(final ByteBuffer buffer) {
         if (buffer == null || !buffer.isDirect() || buffer.capacity() == 0) {
             return;
@@ -753,6 +758,11 @@ public class UtilAll {
         }
     }
 
+    /**
+     * 确保创建文件的目录存在
+     *
+     * @param dirName
+     */
     public static void ensureDirOK(final String dirName) {
         if (dirName != null) {
             if (dirName.contains(MixAll.MULTI_PATH_SPLITTER)) {

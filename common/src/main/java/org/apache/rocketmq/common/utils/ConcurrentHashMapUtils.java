@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
+/**
+ * 并发hash map工具类
+ */
 public abstract class ConcurrentHashMapUtils {
 
     private static boolean isJdk8;

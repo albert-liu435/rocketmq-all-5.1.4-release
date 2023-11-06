@@ -18,6 +18,9 @@ package org.apache.rocketmq.store.config;
 
 import java.io.File;
 
+/**
+ * 工具类
+ */
 public class StorePathConfigHelper {
 
     public static String getStorePathConsumeQueue(final String rootDir) {
@@ -27,6 +30,7 @@ public class StorePathConfigHelper {
     public static String getStorePathConsumeQueueExt(final String rootDir) {
         return rootDir + File.separator + "consumequeue_ext";
     }
+
     public static String getStorePathBatchConsumeQueue(final String rootDir) {
         return rootDir + File.separator + "batchconsumequeue";
     }

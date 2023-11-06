@@ -134,7 +134,9 @@ public class CommitLog implements Swappable {
     //用于操作CommitLog类的对象
     protected final DefaultMessageStore defaultMessageStore;
 
+    //刷盘管理器
     private final FlushManager flushManager;
+
     private final ColdDataCheckService coldDataCheckService;
     //消息拼接的类
     private final AppendMessageCallback appendMessageCallback;
@@ -153,13 +155,15 @@ public class CommitLog implements Swappable {
 
     private final FlushDiskWatcher flushDiskWatcher;
 
+    //commitlog大小   为1G
     protected int commitLogSize;
 
     public CommitLog(final DefaultMessageStore messageStore) {
+
+        //存储路径
         String storePath = messageStore.getMessageStoreConfig().getStorePathCommitLog();
 
         //创建MappedFileQueue对象，传入的路径是配置的CommitLog的文件路径，和默认的文件大小1G，同时传入提前创建MappedFile对象的AllocateMappedFileService
-
         if (storePath.contains(MixAll.MULTI_PATH_SPLITTER)) {
             this.mappedFileQueue = new MultiPathMappedFileQueue(messageStore.getMessageStoreConfig(),
                     messageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(),
@@ -209,6 +213,11 @@ public class CommitLog implements Swappable {
         return putMessageThreadLocal;
     }
 
+    /**
+     * 进行文件加载映射
+     *
+     * @return
+     */
     public boolean load() {
         //加载映射文件集合
         boolean result = this.mappedFileQueue.load();
@@ -1934,6 +1943,9 @@ public class CommitLog implements Swappable {
         }
     }
 
+    /**
+     * 消息回调
+     */
     class DefaultAppendMessageCallback implements AppendMessageCallback {
         // File at the end of the minimum fixed length empty
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
@@ -2300,6 +2312,10 @@ public class CommitLog implements Swappable {
         return !MixAll.isWindows() && !defaultMessageStore.getMessageStoreConfig().isDataReadAheadEnable();
     }
 
+
+    /**
+     * 冷数据检查服务
+     */
     public class ColdDataCheckService extends ServiceThread {
         private final SystemClock systemClock = new SystemClock();
         private final ConcurrentHashMap<String, byte[]> pageCacheMap = new ConcurrentHashMap<>();

@@ -29,6 +29,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.rocketmq.common.ThreadFactoryImpl;
 import org.apache.rocketmq.common.TopicConfig;
 import org.apache.rocketmq.common.attribute.CleanupPolicy;
@@ -43,6 +44,9 @@ import org.apache.rocketmq.store.GetMessageResult;
 import org.apache.rocketmq.store.SelectMappedBufferResult;
 import org.apache.rocketmq.store.config.MessageStoreConfig;
 
+/**
+ * 压缩存储
+ */
 public class CompactionStore {
 
     public static final String COMPACTION_DIR = "compaction";
@@ -76,7 +80,7 @@ public class CompactionStore {
         this.compactionThreadNum = Math.min(Runtime.getRuntime().availableProcessors(), Math.max(1, config.getCompactionThreadNum()));
 
         this.compactionSchedule = ThreadUtils.newScheduledThreadPool(this.compactionThreadNum,
-            new ThreadFactoryImpl("compactionSchedule_"));
+                new ThreadFactoryImpl("compactionSchedule_"));
         this.offsetMapSize = config.getMaxOffsetMapSize() / compactionThreadNum;
 
         this.compactionInterval = defaultMessageStore.getMessageStoreConfig().getCompactionScheduleInternal();
@@ -108,9 +112,9 @@ public class CompactionStore {
                             }
                         } catch (Exception e) {
                             log.error("load compactionLog {}:{} exception: ",
-                                fileTopic.getName(), fileQueueId.getName(), e);
+                                    fileTopic.getName(), fileQueueId.getName(), e);
                             throw new Exception("load compactionLog " + fileTopic.getName()
-                                + ":" + fileQueueId.getName() + " exception: " + e.getMessage());
+                                    + ":" + fileQueueId.getName() + " exception: " + e.getMessage());
                         }
                     }
                 }
@@ -178,7 +182,7 @@ public class CompactionStore {
     }
 
     public GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset,
-        final int maxMsgNums, final int maxTotalMsgSize) {
+                                       final int maxMsgNums, final int maxTotalMsgSize) {
         CompactionLog log = compactionLogTable.get(topic + "_" + queueId);
         if (log == null) {
             return GetMessageResult.NO_MATCH_LOGIC_QUEUE;

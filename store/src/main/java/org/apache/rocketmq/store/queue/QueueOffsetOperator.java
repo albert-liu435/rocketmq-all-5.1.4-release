@@ -28,6 +28,7 @@ import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 
 /**
+ * 队列偏移量操作类
  * QueueOffsetOperator is a component for operating offsets for queues.
  */
 public class QueueOffsetOperator {

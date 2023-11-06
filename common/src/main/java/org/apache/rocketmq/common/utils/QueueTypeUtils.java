@@ -24,6 +24,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 用来返回队列类型工具类
+ */
 public class QueueTypeUtils {
 
     public static boolean isBatchCq(Optional<TopicConfig> topicConfig) {

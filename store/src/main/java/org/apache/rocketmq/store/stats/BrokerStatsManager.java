@@ -18,6 +18,7 @@ package org.apache.rocketmq.store.stats;
 
 import java.util.HashMap;
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.rocketmq.common.BrokerConfig;
 import org.apache.rocketmq.common.ThreadFactoryImpl;
@@ -40,33 +41,58 @@ import org.apache.rocketmq.common.utils.ThreadUtils;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 
+/**
+ * 状态管理类
+ */
 public class BrokerStatsManager {
 
-    @Deprecated public static final String QUEUE_PUT_NUMS = Stats.QUEUE_PUT_NUMS;
-    @Deprecated public static final String QUEUE_PUT_SIZE = Stats.QUEUE_PUT_SIZE;
-    @Deprecated public static final String QUEUE_GET_NUMS = Stats.QUEUE_GET_NUMS;
-    @Deprecated public static final String QUEUE_GET_SIZE = Stats.QUEUE_GET_SIZE;
-    @Deprecated public static final String TOPIC_PUT_NUMS = Stats.TOPIC_PUT_NUMS;
-    @Deprecated public static final String TOPIC_PUT_SIZE = Stats.TOPIC_PUT_SIZE;
+    @Deprecated
+    public static final String QUEUE_PUT_NUMS = Stats.QUEUE_PUT_NUMS;
+    @Deprecated
+    public static final String QUEUE_PUT_SIZE = Stats.QUEUE_PUT_SIZE;
+    @Deprecated
+    public static final String QUEUE_GET_NUMS = Stats.QUEUE_GET_NUMS;
+    @Deprecated
+    public static final String QUEUE_GET_SIZE = Stats.QUEUE_GET_SIZE;
+    @Deprecated
+    public static final String TOPIC_PUT_NUMS = Stats.TOPIC_PUT_NUMS;
+    @Deprecated
+    public static final String TOPIC_PUT_SIZE = Stats.TOPIC_PUT_SIZE;
 
-    @Deprecated public static final String GROUP_GET_NUMS = Stats.GROUP_GET_NUMS;
-    @Deprecated public static final String GROUP_GET_SIZE = Stats.GROUP_GET_SIZE;
+    @Deprecated
+    public static final String GROUP_GET_NUMS = Stats.GROUP_GET_NUMS;
+    @Deprecated
+    public static final String GROUP_GET_SIZE = Stats.GROUP_GET_SIZE;
 
-    @Deprecated public static final String SNDBCK_PUT_NUMS = Stats.SNDBCK_PUT_NUMS;
-    @Deprecated public static final String BROKER_PUT_NUMS = Stats.BROKER_PUT_NUMS;
-    @Deprecated public static final String BROKER_GET_NUMS = Stats.BROKER_GET_NUMS;
-    @Deprecated public static final String GROUP_GET_FROM_DISK_NUMS = Stats.GROUP_GET_FROM_DISK_NUMS;
-    @Deprecated public static final String GROUP_GET_FROM_DISK_SIZE = Stats.GROUP_GET_FROM_DISK_SIZE;
-    @Deprecated public static final String BROKER_GET_FROM_DISK_NUMS = Stats.BROKER_GET_FROM_DISK_NUMS;
-    @Deprecated public static final String BROKER_GET_FROM_DISK_SIZE = Stats.BROKER_GET_FROM_DISK_SIZE;
+    @Deprecated
+    public static final String SNDBCK_PUT_NUMS = Stats.SNDBCK_PUT_NUMS;
+    @Deprecated
+    public static final String BROKER_PUT_NUMS = Stats.BROKER_PUT_NUMS;
+    @Deprecated
+    public static final String BROKER_GET_NUMS = Stats.BROKER_GET_NUMS;
+    @Deprecated
+    public static final String GROUP_GET_FROM_DISK_NUMS = Stats.GROUP_GET_FROM_DISK_NUMS;
+    @Deprecated
+    public static final String GROUP_GET_FROM_DISK_SIZE = Stats.GROUP_GET_FROM_DISK_SIZE;
+    @Deprecated
+    public static final String BROKER_GET_FROM_DISK_NUMS = Stats.BROKER_GET_FROM_DISK_NUMS;
+    @Deprecated
+    public static final String BROKER_GET_FROM_DISK_SIZE = Stats.BROKER_GET_FROM_DISK_SIZE;
     // For commercial
-    @Deprecated public static final String COMMERCIAL_SEND_TIMES = Stats.COMMERCIAL_SEND_TIMES;
-    @Deprecated public static final String COMMERCIAL_SNDBCK_TIMES = Stats.COMMERCIAL_SNDBCK_TIMES;
-    @Deprecated public static final String COMMERCIAL_RCV_TIMES = Stats.COMMERCIAL_RCV_TIMES;
-    @Deprecated public static final String COMMERCIAL_RCV_EPOLLS = Stats.COMMERCIAL_RCV_EPOLLS;
-    @Deprecated public static final String COMMERCIAL_SEND_SIZE = Stats.COMMERCIAL_SEND_SIZE;
-    @Deprecated public static final String COMMERCIAL_RCV_SIZE = Stats.COMMERCIAL_RCV_SIZE;
-    @Deprecated public static final String COMMERCIAL_PERM_FAILURES = Stats.COMMERCIAL_PERM_FAILURES;
+    @Deprecated
+    public static final String COMMERCIAL_SEND_TIMES = Stats.COMMERCIAL_SEND_TIMES;
+    @Deprecated
+    public static final String COMMERCIAL_SNDBCK_TIMES = Stats.COMMERCIAL_SNDBCK_TIMES;
+    @Deprecated
+    public static final String COMMERCIAL_RCV_TIMES = Stats.COMMERCIAL_RCV_TIMES;
+    @Deprecated
+    public static final String COMMERCIAL_RCV_EPOLLS = Stats.COMMERCIAL_RCV_EPOLLS;
+    @Deprecated
+    public static final String COMMERCIAL_SEND_SIZE = Stats.COMMERCIAL_SEND_SIZE;
+    @Deprecated
+    public static final String COMMERCIAL_RCV_SIZE = Stats.COMMERCIAL_RCV_SIZE;
+    @Deprecated
+    public static final String COMMERCIAL_PERM_FAILURES = Stats.COMMERCIAL_PERM_FAILURES;
 
     // Send message latency
     public static final String TOPIC_PUT_LATENCY = "TOPIC_PUT_LATENCY";
@@ -107,10 +133,13 @@ public class BrokerStatsManager {
     public static final String RT = "RT";
     public static final String INNER_RT = "INNER_RT";
 
-    @Deprecated public static final String GROUP_GET_FALL_SIZE = Stats.GROUP_GET_FALL_SIZE;
-    @Deprecated public static final String GROUP_GET_FALL_TIME = Stats.GROUP_GET_FALL_TIME;
+    @Deprecated
+    public static final String GROUP_GET_FALL_SIZE = Stats.GROUP_GET_FALL_SIZE;
+    @Deprecated
+    public static final String GROUP_GET_FALL_TIME = Stats.GROUP_GET_FALL_TIME;
     // Pull Message Latency
-    @Deprecated public static final String GROUP_GET_LATENCY = Stats.GROUP_GET_LATENCY;
+    @Deprecated
+    public static final String GROUP_GET_LATENCY = Stats.GROUP_GET_LATENCY;
 
     // Consumer Register Time
     public static final String CONSUMER_REGISTER_TIME = "CONSUMER_REGISTER_TIME";
@@ -127,10 +156,10 @@ public class BrokerStatsManager {
      */
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_STATS_LOGGER_NAME);
     private static final Logger COMMERCIAL_LOG = LoggerFactory.getLogger(
-        LoggerName.COMMERCIAL_LOGGER_NAME);
+            LoggerName.COMMERCIAL_LOGGER_NAME);
     private static final Logger ACCOUNT_LOG = LoggerFactory.getLogger(LoggerName.ACCOUNT_LOGGER_NAME);
     private static final Logger DLQ_STAT_LOG = LoggerFactory.getLogger(
-        LoggerName.DLQ_STATS_LOGGER_NAME);
+            LoggerName.DLQ_STATS_LOGGER_NAME);
     private ScheduledExecutorService scheduledExecutorService;
     private ScheduledExecutorService commercialExecutor;
     private ScheduledExecutorService accountExecutor;
@@ -164,10 +193,10 @@ public class BrokerStatsManager {
 
     public void init() {
         momentStatsItemSetFallSize = new MomentStatsItemSet(GROUP_GET_FALL_SIZE,
-            scheduledExecutorService, log);
+                scheduledExecutorService, log);
 
         momentStatsItemSetFallTime = new MomentStatsItemSet(GROUP_GET_FALL_TIME,
-            scheduledExecutorService, log);
+                scheduledExecutorService, log);
 
         if (enableQueueStat) {
             this.statsTable.put(Stats.QUEUE_PUT_NUMS, new StatsItemSet(Stats.QUEUE_PUT_NUMS, this.scheduledExecutorService, log));
@@ -190,64 +219,64 @@ public class BrokerStatsManager {
         this.statsTable.put(BROKER_ACK_NUMS, new StatsItemSet(BROKER_ACK_NUMS, this.scheduledExecutorService, log));
         this.statsTable.put(BROKER_CK_NUMS, new StatsItemSet(BROKER_CK_NUMS, this.scheduledExecutorService, log));
         this.statsTable.put(BROKER_GET_NUMS_WITHOUT_SYSTEM_TOPIC,
-            new StatsItemSet(BROKER_GET_NUMS_WITHOUT_SYSTEM_TOPIC, this.scheduledExecutorService, log));
+                new StatsItemSet(BROKER_GET_NUMS_WITHOUT_SYSTEM_TOPIC, this.scheduledExecutorService, log));
         this.statsTable.put(BROKER_PUT_NUMS_WITHOUT_SYSTEM_TOPIC,
-            new StatsItemSet(BROKER_PUT_NUMS_WITHOUT_SYSTEM_TOPIC, this.scheduledExecutorService, log));
+                new StatsItemSet(BROKER_PUT_NUMS_WITHOUT_SYSTEM_TOPIC, this.scheduledExecutorService, log));
         this.statsTable.put(Stats.GROUP_GET_FROM_DISK_NUMS,
-            new StatsItemSet(Stats.GROUP_GET_FROM_DISK_NUMS, this.scheduledExecutorService, log));
+                new StatsItemSet(Stats.GROUP_GET_FROM_DISK_NUMS, this.scheduledExecutorService, log));
         this.statsTable.put(Stats.GROUP_GET_FROM_DISK_SIZE,
-            new StatsItemSet(Stats.GROUP_GET_FROM_DISK_SIZE, this.scheduledExecutorService, log));
+                new StatsItemSet(Stats.GROUP_GET_FROM_DISK_SIZE, this.scheduledExecutorService, log));
         this.statsTable.put(Stats.BROKER_GET_FROM_DISK_NUMS,
-            new StatsItemSet(Stats.BROKER_GET_FROM_DISK_NUMS, this.scheduledExecutorService, log));
+                new StatsItemSet(Stats.BROKER_GET_FROM_DISK_NUMS, this.scheduledExecutorService, log));
         this.statsTable.put(Stats.BROKER_GET_FROM_DISK_SIZE,
-            new StatsItemSet(Stats.BROKER_GET_FROM_DISK_SIZE, this.scheduledExecutorService, log));
+                new StatsItemSet(Stats.BROKER_GET_FROM_DISK_SIZE, this.scheduledExecutorService, log));
 
         this.statsTable.put(SNDBCK2DLQ_TIMES,
-            new StatsItemSet(SNDBCK2DLQ_TIMES, this.scheduledExecutorService, DLQ_STAT_LOG));
+                new StatsItemSet(SNDBCK2DLQ_TIMES, this.scheduledExecutorService, DLQ_STAT_LOG));
 
         this.statsTable.put(Stats.COMMERCIAL_SEND_TIMES,
-            new StatsItemSet(Stats.COMMERCIAL_SEND_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_SEND_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_RCV_TIMES,
-            new StatsItemSet(Stats.COMMERCIAL_RCV_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_RCV_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_SEND_SIZE,
-            new StatsItemSet(Stats.COMMERCIAL_SEND_SIZE, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_SEND_SIZE, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_RCV_SIZE,
-            new StatsItemSet(Stats.COMMERCIAL_RCV_SIZE, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_RCV_SIZE, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_RCV_EPOLLS,
-            new StatsItemSet(Stats.COMMERCIAL_RCV_EPOLLS, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_RCV_EPOLLS, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_SNDBCK_TIMES,
-            new StatsItemSet(Stats.COMMERCIAL_SNDBCK_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_SNDBCK_TIMES, this.commercialExecutor, COMMERCIAL_LOG));
         this.statsTable.put(Stats.COMMERCIAL_PERM_FAILURES,
-            new StatsItemSet(Stats.COMMERCIAL_PERM_FAILURES, this.commercialExecutor, COMMERCIAL_LOG));
+                new StatsItemSet(Stats.COMMERCIAL_PERM_FAILURES, this.commercialExecutor, COMMERCIAL_LOG));
 
         this.statsTable.put(CONSUMER_REGISTER_TIME,
-            new StatsItemSet(CONSUMER_REGISTER_TIME, this.scheduledExecutorService, log));
+                new StatsItemSet(CONSUMER_REGISTER_TIME, this.scheduledExecutorService, log));
         this.statsTable.put(PRODUCER_REGISTER_TIME,
-            new StatsItemSet(PRODUCER_REGISTER_TIME, this.scheduledExecutorService, log));
+                new StatsItemSet(PRODUCER_REGISTER_TIME, this.scheduledExecutorService, log));
 
         this.statsTable.put(CHANNEL_ACTIVITY, new StatsItemSet(CHANNEL_ACTIVITY, this.scheduledExecutorService, log));
 
         StatisticsItemFormatter formatter = new StatisticsItemFormatter();
-        accountStatManager.setBriefMeta(new Pair[] {
-            Pair.of(RT, new long[][] {{50, 50}, {100, 10}, {1000, 10}}),
-            Pair.of(INNER_RT, new long[][] {{10, 10}, {100, 10}, {1000, 10}})});
-        String[] itemNames = new String[] {
-            MSG_NUM, SUCCESS_MSG_NUM, FAILURE_MSG_NUM, COMMERCIAL_MSG_NUM,
-            SUCCESS_REQ_NUM, FAILURE_REQ_NUM,
-            MSG_SIZE, SUCCESS_MSG_SIZE, FAILURE_MSG_SIZE,
-            RT, INNER_RT};
+        accountStatManager.setBriefMeta(new Pair[]{
+                Pair.of(RT, new long[][]{{50, 50}, {100, 10}, {1000, 10}}),
+                Pair.of(INNER_RT, new long[][]{{10, 10}, {100, 10}, {1000, 10}})});
+        String[] itemNames = new String[]{
+                MSG_NUM, SUCCESS_MSG_NUM, FAILURE_MSG_NUM, COMMERCIAL_MSG_NUM,
+                SUCCESS_REQ_NUM, FAILURE_REQ_NUM,
+                MSG_SIZE, SUCCESS_MSG_SIZE, FAILURE_MSG_SIZE,
+                RT, INNER_RT};
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_SEND, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_SEND, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_RCV, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_RCV, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_SEND_BACK, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_SEND_BACK, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_SEND_BACK_TO_DLQ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_SEND_BACK_TO_DLQ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_SEND_REJ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_SEND_REJ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.addStatisticsKindMeta(createStatisticsKindMeta(
-            ACCOUNT_REV_REJ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
+                ACCOUNT_REV_REJ, itemNames, this.accountExecutor, formatter, ACCOUNT_LOG, ACCOUNT_STAT_INVERTAL));
         this.accountStatManager.setStatisticsItemStateGetter(new StatisticsItemStateGetter() {
             @Override
             public boolean online(StatisticsItem item) {
@@ -281,11 +310,11 @@ public class BrokerStatsManager {
 
     private void initScheduleService() {
         this.scheduledExecutorService =
-            ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("BrokerStatsThread", true, brokerConfig));
+                ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("BrokerStatsThread", true, brokerConfig));
         this.commercialExecutor =
-            ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CommercialStatsThread", true, brokerConfig));
+                ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CommercialStatsThread", true, brokerConfig));
         this.accountExecutor =
-            ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("AccountStatsThread", true, brokerConfig));
+                ThreadUtils.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("AccountStatsThread", true, brokerConfig));
     }
 
     public MomentStatsItemSet getMomentStatsItemSetFallSize() {
@@ -583,55 +612,55 @@ public class BrokerStatsManager {
     }
 
     public void recordDiskFallBehindTime(final String group, final String topic, final int queueId,
-        final long fallBehind) {
+                                         final long fallBehind) {
         final String statsKey = buildStatsKey(queueId, topic, group);
         this.momentStatsItemSetFallTime.getAndCreateStatsItem(statsKey).getValue().set(fallBehind);
     }
 
     public void recordDiskFallBehindSize(final String group, final String topic, final int queueId,
-        final long fallBehind) {
+                                         final long fallBehind) {
         final String statsKey = buildStatsKey(queueId, topic, group);
         this.momentStatsItemSetFallSize.getAndCreateStatsItem(statsKey).getValue().set(fallBehind);
     }
 
     public void incDLQStatValue(final String key, final String owner, final String group,
-        final String topic, final String type, final int incValue) {
+                                final String topic, final String type, final int incValue) {
         final String statsKey = buildCommercialStatsKey(owner, topic, group, type);
         this.statsTable.get(key).addValue(statsKey, incValue, 1);
     }
 
     public void incCommercialValue(final String key, final String owner, final String group,
-        final String topic, final String type, final int incValue) {
+                                   final String topic, final String type, final int incValue) {
         final String statsKey = buildCommercialStatsKey(owner, topic, group, type);
         this.statsTable.get(key).addValue(statsKey, incValue, 1);
     }
 
     public void incAccountValue(final String key, final String accountOwnerParent, final String accountOwnerSelf,
-        final String instanceId, final String group, final String topic,
-        final String msgType, final int incValue) {
+                                final String instanceId, final String group, final String topic,
+                                final String msgType, final int incValue) {
         final String statsKey = buildAccountStatsKey(accountOwnerParent, accountOwnerSelf, instanceId, topic, group,
-            msgType);
+                msgType);
         this.statsTable.get(key).addValue(statsKey, incValue, 1);
     }
 
     public void incAccountValue(final String key, final String accountOwnerParent, final String accountOwnerSelf,
-        final String instanceId, final String group, final String topic,
-        final String msgType, final String flowlimitThreshold, final int incValue) {
+                                final String instanceId, final String group, final String topic,
+                                final String msgType, final String flowlimitThreshold, final int incValue) {
         final String statsKey = buildAccountStatsKey(accountOwnerParent, accountOwnerSelf, instanceId, topic, group,
-            msgType, flowlimitThreshold);
+                msgType, flowlimitThreshold);
         this.statsTable.get(key).addValue(statsKey, incValue, 1);
     }
 
     public void incAccountValue(final String statType, final String owner, final String instanceId, final String topic,
-        final String group, final String msgType,
-        final long... incValues) {
+                                final String group, final String msgType,
+                                final long... incValues) {
         final String key = buildAccountStatKey(owner, instanceId, topic, group, msgType);
         this.accountStatManager.inc(statType, key, incValues);
     }
 
     public void incAccountValue(final String statType, final String owner, final String instanceId, final String topic,
-        final String group, final String msgType, final String flowlimitThreshold,
-        final long... incValues) {
+                                final String group, final String msgType, final String flowlimitThreshold,
+                                final long... incValues) {
         final String key = buildAccountStatKey(owner, instanceId, topic, group, msgType, flowlimitThreshold);
         this.accountStatManager.inc(statType, key, incValues);
     }
@@ -649,7 +678,7 @@ public class BrokerStatsManager {
     }
 
     public String buildAccountStatsKey(String accountOwnerParent, String accountOwnerSelf, String instanceId,
-        String topic, String group, String msgType) {
+                                       String topic, String group, String msgType) {
         StringBuffer strBuilder = new StringBuffer();
         strBuilder.append(accountOwnerParent);
         strBuilder.append("@");
@@ -666,7 +695,7 @@ public class BrokerStatsManager {
     }
 
     public String buildAccountStatsKey(String accountOwnerParent, String accountOwnerSelf, String instanceId,
-        String topic, String group, String msgType, String flowlimitThreshold) {
+                                       String topic, String group, String msgType, String flowlimitThreshold) {
         StringBuffer strBuilder = new StringBuffer();
         strBuilder.append(accountOwnerParent);
         strBuilder.append("@");
@@ -685,8 +714,8 @@ public class BrokerStatsManager {
     }
 
     public String buildAccountStatKey(final String owner, final String instanceId,
-        final String topic, final String group,
-        final String msgType) {
+                                      final String topic, final String group,
+                                      final String msgType) {
         final String sep = "|";
         StringBuffer strBuilder = new StringBuffer();
         strBuilder.append(owner).append(sep);
@@ -698,8 +727,8 @@ public class BrokerStatsManager {
     }
 
     public String buildAccountStatKey(final String owner, final String instanceId,
-        final String topic, final String group,
-        final String msgType, String flowlimitThreshold) {
+                                      final String topic, final String group,
+                                      final String msgType, String flowlimitThreshold) {
         final String sep = "|";
         StringBuffer strBuilder = new StringBuffer();
         strBuilder.append(owner).append(sep);
@@ -717,41 +746,41 @@ public class BrokerStatsManager {
     }
 
     private StatisticsKindMeta createStatisticsKindMeta(String name,
-        String[] itemNames,
-        ScheduledExecutorService executorService,
-        StatisticsItemFormatter formatter,
-        Logger log,
-        long interval) {
+                                                        String[] itemNames,
+                                                        ScheduledExecutorService executorService,
+                                                        StatisticsItemFormatter formatter,
+                                                        Logger log,
+                                                        long interval) {
         final BrokerConfig brokerConfig = this.brokerConfig;
         StatisticsItemPrinter printer = new StatisticsItemPrinter(formatter, log);
         StatisticsKindMeta kindMeta = new StatisticsKindMeta();
         kindMeta.setName(name);
         kindMeta.setItemNames(itemNames);
         kindMeta.setScheduledPrinter(
-            new StatisticsItemScheduledIncrementPrinter(
-                "Stat In One Minute: ",
-                printer,
-                executorService,
-                new StatisticsItemScheduledPrinter.InitialDelay() {
-                    @Override
-                    public long get() {
-                        return Math.abs(UtilAll.computeNextMinutesTimeMillis() - System.currentTimeMillis());
-                    }
-                },
-                interval,
-                new String[] {MSG_NUM},
-                new StatisticsItemScheduledIncrementPrinter.Valve() {
-                    @Override
-                    public boolean enabled() {
-                        return brokerConfig != null ? brokerConfig.isAccountStatsEnable() : true;
-                    }
+                new StatisticsItemScheduledIncrementPrinter(
+                        "Stat In One Minute: ",
+                        printer,
+                        executorService,
+                        new StatisticsItemScheduledPrinter.InitialDelay() {
+                            @Override
+                            public long get() {
+                                return Math.abs(UtilAll.computeNextMinutesTimeMillis() - System.currentTimeMillis());
+                            }
+                        },
+                        interval,
+                        new String[]{MSG_NUM},
+                        new StatisticsItemScheduledIncrementPrinter.Valve() {
+                            @Override
+                            public boolean enabled() {
+                                return brokerConfig != null ? brokerConfig.isAccountStatsEnable() : true;
+                            }
 
-                    @Override
-                    public boolean printZeroLine() {
-                        return brokerConfig != null ? brokerConfig.isAccountStatsPrintZeroValues() : true;
-                    }
-                }
-            )
+                            @Override
+                            public boolean printZeroLine() {
+                                return brokerConfig != null ? brokerConfig.isAccountStatsPrintZeroValues() : true;
+                            }
+                        }
+                )
         );
         return kindMeta;
     }

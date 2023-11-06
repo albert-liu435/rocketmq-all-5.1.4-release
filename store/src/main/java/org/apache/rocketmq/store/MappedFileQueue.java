@@ -57,6 +57,11 @@ public class MappedFileQueue implements Swappable {
     //并发线程安全队列存储映射文件
     protected final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<>();
 
+    //AllocateMappedFileService类型的字段，这个对象的作用是根据情况来决定是否需要提前创建好MappedFile对象供后续的直接使用。而这个参数是在构造MappedFileQueue对象的时候的一个参数。
+    //只有在CommitLog中构造时才会传入AllocateMappedFileService，在ConsumeQueue并没有传入。
+    //————————————————
+    //版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+    //原文链接：https://blog.csdn.net/szhlcy/article/details/114541473
     protected final AllocateMappedFileService allocateMappedFileService;
     //刷新完的位置
     protected long flushedWhere = 0;
@@ -74,7 +79,9 @@ public class MappedFileQueue implements Swappable {
      */
     public MappedFileQueue(final String storePath, int mappedFileSize,
                            AllocateMappedFileService allocateMappedFileService) {
+        //指定文件的存储路径
         this.storePath = storePath;
+        //指定单个文件的大小
         this.mappedFileSize = mappedFileSize;
         this.allocateMappedFileService = allocateMappedFileService;
     }
@@ -93,6 +100,7 @@ public class MappedFileQueue implements Swappable {
             Iterator<MappedFile> iterator = mappedFiles.iterator();
             MappedFile pre = null;
             while (iterator.hasNext()) {
+                //当前文件
                 MappedFile cur = iterator.next();
 
                 if (pre != null) {
@@ -307,13 +315,14 @@ public class MappedFileQueue implements Swappable {
         //根据名称进行排序
         // ascending order
         files.sort(Comparator.comparing(File::getName));
-
+        //遍历文件
         for (int i = 0; i < files.size(); i++) {
+            //获取文件
             File file = files.get(i);
             if (file.isDirectory()) {
                 continue;
             }
-
+            //如果文件为空
             if (file.length() == 0 && i == files.size() - 1) {
                 boolean ok = file.delete();
                 log.warn("{} size is 0, auto delete. is_ok: {}", file, ok);
@@ -476,6 +485,7 @@ public class MappedFileQueue implements Swappable {
      * @return
      */
     public MappedFile getLastMappedFile() {
+        //转换为数组
         MappedFile[] mappedFiles = this.mappedFiles.toArray(new MappedFile[0]);
         //如果文件队列不为空则获取最后一个文件
         return mappedFiles.length == 0 ? null : mappedFiles[mappedFiles.length - 1];
@@ -748,6 +758,12 @@ public class MappedFileQueue implements Swappable {
         return deleteCount;
     }
 
+    /**
+     * 进行flush操作
+     *
+     * @param flushLeastPages
+     * @return
+     */
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
         MappedFile mappedFile = this.findMappedFileByOffset(this.getFlushedWhere(), this.getFlushedWhere() == 0);
@@ -836,11 +852,17 @@ public class MappedFileQueue implements Swappable {
         return null;
     }
 
+    /**
+     * 获取第一个MappedFile
+     *
+     * @return
+     */
     public MappedFile getFirstMappedFile() {
         MappedFile mappedFileFirst = null;
 
         if (!this.mappedFiles.isEmpty()) {
             try {
+                //
                 mappedFileFirst = this.mappedFiles.get(0);
             } catch (IndexOutOfBoundsException e) {
                 //ignore

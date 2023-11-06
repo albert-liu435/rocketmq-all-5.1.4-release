@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * topic 队列锁
+ */
 public class TopicQueueLock {
     private final int size;
     private final List<Lock> lockList;

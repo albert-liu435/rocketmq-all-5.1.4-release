@@ -19,5 +19,6 @@ package org.apache.rocketmq.common.attribute;
 
 public enum CQType {
     SimpleCQ,
+    //批量
     BatchCQ
 }

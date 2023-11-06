@@ -65,23 +65,23 @@ import sun.nio.ch.DirectBuffer;
  * MapedFile是与RocketMQ的文件模块中最底层得到对象，提供了对文件记录的一些操作方法。后面就对这个类重要属性和方法进行分析。
  */
 
-//
-//
-//
-//
-//
-//  | IndexService      |ConsumeQueue|CommitLog |
-//  |   Index File      |   MappedFileQueue     |
-//  |               MappedFile                  |
-//  |               MappedByteBuffer            |
-//  |               磁盘                        |
-//
-//
-
+/*
+ *
+ *
+ *
+ *
+ *  |       IndexService        |ConsumeQueue|CommitLog |
+ *  |       Index File          |   MappedFileQueue     |
+ *  |                   MappedFile                      |
+ *  |                 MappedByteBuffer                  |
+ *  |                      磁盘                          |
+ *
+ */
 
 public class DefaultMappedFile extends AbstractMappedFile {
 
-    //这里需要额外讲解的是，几个表示位置的参数。wrotePosition，committedPosition，flushedPosition。大概的关系如下wrotePosition<=committedPosition<=flushedPosition<=fileSize
+    //这里需要额外讲解的是，几个表示位置的参数。wrotePosition，committedPosition，flushedPosition。
+    // 大概的关系如下wrotePosition<=committedPosition<=flushedPosition<=fileSize
 
     //操作系统每页大小，默认4k
     public static final int OS_PAGE_SIZE = 1024 * 4;
@@ -96,7 +96,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
     //当前JVM实例中MappedFile虚拟内存
     protected static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
 
-    //映射额文件个数
+    //映射文件个数
     //MappedFile 个数。当前JVM实例中MappedFile对象个数
     protected static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
 
@@ -121,8 +121,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
     protected volatile int flushedPosition;
     //文件大小
     protected int fileSize;
-    //创建MappedByteBuffer用的
-    //文件通道。
+    //创建MappedByteBuffer用的文件通道。
     protected FileChannel fileChannel;
     /**
      * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
@@ -377,6 +376,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
 
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb,
                                                    PutMessageContext putMessageContext) {
+        //断言
         assert messageExt != null;
         assert cb != null;
         //获取当前想写的位置
@@ -496,6 +496,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
     //wrotePosition。
     @Override
     public int flush(final int flushLeastPages) {
+        //判断是否可以进行flush
         if (this.isAbleToFlush(flushLeastPages)) {
             //检查文件是否有效，也就是有引用，并添加引用
             if (this.hold()) {
@@ -712,6 +713,7 @@ public class DefaultMappedFile extends AbstractMappedFile {
      */
     @Override
     public boolean cleanup(final long currentRef) {
+
         if (this.isAvailable()) {
             log.error("this file[REF:" + currentRef + "] " + this.fileName
                     + " have not shutdown, stop unmapping.");
