@@ -68,6 +68,9 @@ import static org.apache.rocketmq.remoting.metrics.RemotingMetricsConstant.RESUL
 import static org.apache.rocketmq.remoting.metrics.RemotingMetricsConstant.RESULT_PROCESS_REQUEST_FAILED;
 import static org.apache.rocketmq.remoting.metrics.RemotingMetricsConstant.RESULT_WRITE_CHANNEL_FAILED;
 
+/**
+ * RocketMQ 抽象了一个 Netty 远程通信抽象基类 NettyRemotingAbstract，它对 Netty 服务器程序进行了封装，负责请求和响应的处理分发、执行，下面就先来看看这个基类的功能
+ */
 public abstract class NettyRemotingAbstract {
 
     /**
@@ -76,22 +79,26 @@ public abstract class NettyRemotingAbstract {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
 
     /**
+     * Oneway 请求类型的信号量，用来限制 Oneway 请求类型的并发度
      * Semaphore to limit maximum number of on-going one-way requests, which protects system memory footprint.
      */
     protected final Semaphore semaphoreOneway;
 
     /**
+     * Async 请求类型的信号量，用来限制 Async 请求类型的并发度
      * Semaphore to limit maximum number of on-going asynchronous requests, which protects system memory footprint.
      */
     protected final Semaphore semaphoreAsync;
 
     /**
+     * 发起请求之后，将等待请求以及回调等操作封装到 ResponseFuture 中，在响应回来之后可以接着进行后续操作。responseTable 就存储了请求编码与 ResponseFuture 的关系。
      * This map caches all on-going requests.
      */
     protected final ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable =
             new ConcurrentHashMap<>(256);
 
     /**
+     * 这个表存储了请求编码与之对应的处理器和线程池
      * This container holds all processors per request code, aka, for each incoming request, we may look up the
      * responding processor in this map to handle the request.
      */
@@ -99,22 +106,26 @@ public abstract class NettyRemotingAbstract {
             new HashMap<>(64);
 
     /**
+     * Netty 事件执行器
      * Executor to feed netty events to user defined {@link ChannelEventListener}.
      */
     protected final NettyEventExecutor nettyEventExecutor = new NettyEventExecutor();
 
     /**
+     * 请求默认处理器，如果 processorTable 没有特定的处理器，就使用这个默认处理器。
      * The default request processor to use in case there is no exact match in {@link #processorTable} per request
      * code.
      */
     protected Pair<NettyRequestProcessor, ExecutorService> defaultRequestProcessorPair;
 
     /**
+     * SSL 上下文。
      * SSL context via which to create {@link SslHandler}.
      */
     protected volatile SslContext sslContext;
 
     /**
+     * RPC 回调钩子函数。
      * custom rpc hooks
      */
     protected List<RPCHook> rpcHooks = new ArrayList<>();
@@ -130,11 +141,13 @@ public abstract class NettyRemotingAbstract {
      * @param permitsAsync  Number of permits for asynchronous requests.
      */
     public NettyRemotingAbstract(final int permitsOneway, final int permitsAsync) {
+        // 创建两个信号量
         this.semaphoreOneway = new Semaphore(permitsOneway, true);
         this.semaphoreAsync = new Semaphore(permitsAsync, true);
     }
 
     /**
+     * 抽象方法：获取网络连接事件监听器
      * Custom channel event listener.
      *
      * @return custom channel event listener if defined; null otherwise.
@@ -151,6 +164,7 @@ public abstract class NettyRemotingAbstract {
     }
 
     /**
+     * 处理消息请求和响应
      * Entry of incoming command processing.
      *
      * <p>
@@ -162,16 +176,18 @@ public abstract class NettyRemotingAbstract {
      * </ul>
      * </p>
      *
-     * @param ctx Channel handler context.
-     * @param msg incoming remoting command.
+     * @param ctx Channel handler context. 就是 Netty 中的连接上下文，通过它可以拿到当前的 Channel、触发管道读写事件、写回响应数据等。
+     * @param msg incoming remoting command. 请求数据的封装，是 RocketMQ 中的通信协议。其在 Netty 网络通道中传输时，会进行序列化、反序列化以及编解码。
      */
     public void processMessageReceived(ChannelHandlerContext ctx, RemotingCommand msg) {
         if (msg != null) {
             switch (msg.getType()) {
+                //处理请求
                 case REQUEST_COMMAND:
                     // 处理发送命令
                     processRequestCommand(ctx, msg);
                     break;
+                //处理响应
                 case RESPONSE_COMMAND:
                     processResponseCommand(ctx, msg);
                     break;
@@ -243,6 +259,16 @@ public abstract class NettyRemotingAbstract {
 
     /**
      * 根据请求命令从processorTable中找到对应的NettyRequestProcessor，封装成RequestTask，提交给对应的messageExecutor来执行。
+     * <p>
+     * 从处理器表processorTable获取请求编码对应的处理器和线程池，没有则使用默认的处理器和线程池
+     * 接着将请求和响应的处理封装成一个 Runnable
+     * 判断是否拒绝请求，是的就返回系统繁忙的编码 SYSTEM_BUSY，将响应写入 Channel。从这可以看出，将数据响应回客户端是通过 ctx.writeAndFlush() 来完成
+     * 然后将前面封装的 Runnable，以及 ctx、cmd 封装成一个 RequestTask
+     * 最后将 RequestTask 提交到线程池里去执行，如果线程池满了被拒绝请求，则响应系统繁忙。
+     * <p>
+     * <p>
+     * <p>
+     * <p>
      * Process incoming request command issued by remote peer.
      *
      * @param ctx channel handler context.
@@ -437,6 +463,7 @@ public abstract class NettyRemotingAbstract {
     }
 
     /**
+     * 抽象方法：获取回调的线程池
      * This method specifies thread pool to use while invoking callback methods.
      *
      * @return Dedicated thread pool instance if specified; or null if the callback is supposed to be executed in the

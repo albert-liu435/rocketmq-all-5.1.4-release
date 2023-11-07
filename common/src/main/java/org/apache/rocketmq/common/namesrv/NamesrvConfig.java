@@ -21,15 +21,24 @@
 package org.apache.rocketmq.common.namesrv;
 
 import java.io.File;
+
 import org.apache.rocketmq.common.MixAll;
 
+/**
+ * Namesrv配置类
+ */
 public class NamesrvConfig {
 
+    // rocketmq 主目录，可以通过 -Drocketmq.home.dir=path 或者环境变量 ROCKETMQ_HOME 来指定
     private String rocketmqHome = System.getProperty(MixAll.ROCKETMQ_HOME_PROPERTY, System.getenv(MixAll.ROCKETMQ_HOME_ENV));
+    // NameServer 存储KV配置属性的文件路径，默认为 ${user.home}/namesrv/kvConfig.json
     private String kvConfigPath = System.getProperty("user.home") + File.separator + "namesrv" + File.separator + "kvConfig.json";
+    // NameServer 默认配置文件路径，默认为 ${user.home}/namesrv/namesrv.properties
     private String configStorePath = System.getProperty("user.home") + File.separator + "namesrv" + File.separator + "namesrv.properties";
     private String productEnvName = "center";
+    // 开启集群测试
     private boolean clusterTest = false;
+    // 是否支持顺序消息，默认不支持
     private boolean orderMessageEnable = false;
     private boolean returnOrderTopicConfigToBroker = true;
 
@@ -58,7 +67,7 @@ public class NamesrvConfig {
 
     /**
      * Support acting master or not.
-     *
+     * <p>
      * The slave can be an acting master when master node is down to support following operations:
      * 1. support lock/unlock message queue operation.
      * 2. support searchOffset, query maxOffset/minOffset operation.
@@ -84,7 +93,7 @@ public class NamesrvConfig {
 
     /**
      * If enable this flag, the topics that don't exist in broker registration payload will be deleted from name server.
-     *
+     * <p>
      * WARNING:
      * 1. Enable this flag and "enableSingleTopicRegister" of broker config meanwhile to avoid losing topic route info unexpectedly.
      * 2. This flag does not support static topic currently.

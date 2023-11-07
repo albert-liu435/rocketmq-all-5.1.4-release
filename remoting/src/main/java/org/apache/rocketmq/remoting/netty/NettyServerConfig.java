@@ -16,6 +16,10 @@
  */
 package org.apache.rocketmq.remoting.netty;
 
+
+/**
+ * netty Server配置类
+ */
 public class NettyServerConfig implements Cloneable {
 
     /**
@@ -23,27 +27,39 @@ public class NettyServerConfig implements Cloneable {
      * By default, it's wildcard address, listening all network interfaces.
      */
     private String bindAddress = "0.0.0.0";
+    // 监听端口，默认设置为 9876
     private int listenPort = 0;
+    // Netty 业务线程池线程数
     private int serverWorkerThreads = 8;
+    // Netty 公共线程池线程数
     private int serverCallbackExecutorThreads = 0;
+    // IO 线程池线程数，处理网络请求
     private int serverSelectorThreads = 3;
+    // send oneway 消息请求并发度
     private int serverOnewaySemaphoreValue = 256;
+    // 异步消息发送最大并发数
     private int serverAsyncSemaphoreValue = 64;
+    // 网络连接空闲时间
     private int serverChannelMaxIdleTimeSeconds = 120;
 
+    // 网络 Socket 发送缓冲区大小，默认64k
     private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;
+    // 网络 Socket 接收缓冲区大小，默认64k
     private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
     private int writeBufferHighWaterMark = NettySystemConfig.writeBufferHighWaterMark;
     private int writeBufferLowWaterMark = NettySystemConfig.writeBufferLowWaterMark;
+    // TCP 全连接队列 backlog 值
     private int serverSocketBacklog = NettySystemConfig.socketBacklog;
+    // ByteBuffer 是否开启缓存
     private boolean serverPooledByteBufAllocatorEnable = true;
 
     /**
      * make install
-     *
-     *
+     * <p>
+     * <p>
      * ../glibc-2.10.1/configure \ --prefix=/usr \ --with-headers=/usr/include \
      * --host=x86_64-linux-gnu \ --build=x86_64-pc-linux-gnu \ --without-gd
+     * 是否启用 Epoll IO 模型，Linux 环境建议开启
      */
     private boolean useEpollNativeSelector = false;
 

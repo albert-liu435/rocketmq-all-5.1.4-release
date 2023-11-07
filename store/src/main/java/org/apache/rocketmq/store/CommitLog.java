@@ -221,6 +221,7 @@ public class CommitLog implements Swappable {
     public boolean load() {
         //加载映射文件集合
         boolean result = this.mappedFileQueue.load();
+
         if (result && !defaultMessageStore.getMessageStoreConfig().isDataReadAheadEnable()) {
             scanFileAndSetReadMode(LibC.MADV_RANDOM);
         }
@@ -232,6 +233,7 @@ public class CommitLog implements Swappable {
     public void start() {
         this.flushManager.start();
         log.info("start commitLog successfully. storeRoot: {}", this.defaultMessageStore.getMessageStoreConfig().getStorePathRootDir());
+        //设置为守护线程，守护线程是优先级低，存活与否不影响JVM的退出的线程
         flushDiskWatcher.setDaemon(true);
         flushDiskWatcher.start();
         if (this.coldDataCheckService != null) {
@@ -1676,6 +1678,9 @@ public class CommitLog implements Swappable {
         }
     }
 
+    /**
+     * 请求Request
+     */
     public static class GroupCommitRequest {
         private final long nextOffset;
         // Indicate the GroupCommitRequest result: true or false
@@ -1723,6 +1728,7 @@ public class CommitLog implements Swappable {
     class GroupCommitService extends FlushCommitLogService {
         private volatile LinkedList<GroupCommitRequest> requestsWrite = new LinkedList<>();
         private volatile LinkedList<GroupCommitRequest> requestsRead = new LinkedList<>();
+        //自旋锁
         private final PutMessageSpinLock lock = new PutMessageSpinLock();
 
         public void putRequest(final GroupCommitRequest request) {
@@ -1737,6 +1743,9 @@ public class CommitLog implements Swappable {
             this.wakeup();
         }
 
+        /**
+         * 交换请求
+         */
         private void swapRequests() {
             lock.lock();
             try {

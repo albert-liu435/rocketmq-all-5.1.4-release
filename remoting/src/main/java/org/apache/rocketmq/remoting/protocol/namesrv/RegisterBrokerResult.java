@@ -19,6 +19,9 @@ package org.apache.rocketmq.remoting.protocol.namesrv;
 
 import org.apache.rocketmq.remoting.protocol.body.KVTable;
 
+/**
+ * 自己测broker结果
+ */
 public class RegisterBrokerResult {
     private String haServerAddr;
     private String masterAddr;

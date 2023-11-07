@@ -17,7 +17,9 @@
 package org.apache.rocketmq.remoting;
 
 import io.netty.channel.Channel;
+
 import java.util.concurrent.ExecutorService;
+
 import org.apache.rocketmq.common.Pair;
 import org.apache.rocketmq.remoting.exception.RemotingSendRequestException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
@@ -25,15 +27,42 @@ import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * RemotingServer 继承自 RemotingService，主要提供了注册请求处理器、接口调用等基础接口。
+ */
 public interface RemotingServer extends RemotingService {
 
+    /**
+     * 针对某个请求，注册处理器以及线程池
+     *
+     * @param requestCode
+     * @param processor
+     * @param executor
+     */
     void registerProcessor(final int requestCode, final NettyRequestProcessor processor,
-        final ExecutorService executor);
+                           final ExecutorService executor);
 
+    /**
+     * 针对所有请求注册默认处理器
+     *
+     * @param processor
+     * @param executor
+     */
     void registerDefaultProcessor(final NettyRequestProcessor processor, final ExecutorService executor);
 
+    /**
+     * 返回本地监听的端口号
+     *
+     * @return
+     */
     int localListenPort();
 
+    /**
+     * 根据请求码获取对应的处理器和线程池
+     *
+     * @param requestCode
+     * @return
+     */
     Pair<NettyRequestProcessor, ExecutorService> getProcessorPair(final int requestCode);
 
     Pair<NettyRequestProcessor, ExecutorService> getDefaultProcessorPair();
@@ -42,16 +71,50 @@ public interface RemotingServer extends RemotingService {
 
     void removeRemotingServer(int port);
 
+    /**
+     * 同步调用，同步等待请求的结果，直到超时
+     *
+     * @param channel
+     * @param request
+     * @param timeoutMillis
+     * @return
+     * @throws InterruptedException
+     * @throws RemotingSendRequestException
+     * @throws RemotingTimeoutException
+     */
     RemotingCommand invokeSync(final Channel channel, final RemotingCommand request,
-        final long timeoutMillis) throws InterruptedException, RemotingSendRequestException,
-        RemotingTimeoutException;
+                               final long timeoutMillis) throws InterruptedException, RemotingSendRequestException,
+            RemotingTimeoutException;
 
+    /**
+     * 异步调用，注册一个回调，请求完成后执行回调
+     *
+     * @param channel
+     * @param request
+     * @param timeoutMillis
+     * @param invokeCallback
+     * @throws InterruptedException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     */
     void invokeAsync(final Channel channel, final RemotingCommand request, final long timeoutMillis,
-        final InvokeCallback invokeCallback) throws InterruptedException,
-        RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
+                     final InvokeCallback invokeCallback) throws InterruptedException,
+            RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
 
+    /**
+     * 直接发送一个请求而不关心响应，没有回调
+     *
+     * @param channel
+     * @param request
+     * @param timeoutMillis
+     * @throws InterruptedException
+     * @throws RemotingTooMuchRequestException
+     * @throws RemotingTimeoutException
+     * @throws RemotingSendRequestException
+     */
     void invokeOneway(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-        throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException,
-        RemotingSendRequestException;
+            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException,
+            RemotingSendRequestException;
 
 }

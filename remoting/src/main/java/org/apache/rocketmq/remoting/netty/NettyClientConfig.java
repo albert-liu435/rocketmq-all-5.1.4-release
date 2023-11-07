@@ -20,6 +20,9 @@ import org.apache.rocketmq.remoting.common.TlsMode;
 
 import static org.apache.rocketmq.remoting.netty.TlsSystemConfig.TLS_ENABLE;
 
+/**
+ * netty 客服端配置类
+ */
 public class NettyClientConfig {
     /**
      * Worker thread number
@@ -43,7 +46,7 @@ public class NettyClientConfig {
     private boolean clientCloseSocketIfTimeout = NettySystemConfig.clientCloseSocketIfTimeout;
 
     private boolean useTLS = Boolean.parseBoolean(System.getProperty(TLS_ENABLE,
-        String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING)));
+            String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING)));
 
     private String socksProxyConfig = "{}";
 

@@ -20,10 +20,16 @@
  */
 package org.apache.rocketmq.remoting.protocol.route;
 
+/**
+ * QueueData 则是存放 topic 的消息队列信息。
+ */
 public class QueueData implements Comparable<QueueData> {
+    // 每个 queue 一定在一组 broker 上
     private String brokerName;
+    // 消费队列和写入的数量，区分读写队列，便于对topic的队列进行扩容和缩容
     private int readQueueNums;
     private int writeQueueNums;
+    // 读写权限
     private int perm;
     private int topicSysFlag;
 
@@ -110,8 +116,8 @@ public class QueueData implements Comparable<QueueData> {
     @Override
     public String toString() {
         return "QueueData [brokerName=" + brokerName + ", readQueueNums=" + readQueueNums
-            + ", writeQueueNums=" + writeQueueNums + ", perm=" + perm + ", topicSysFlag=" + topicSysFlag
-            + "]";
+                + ", writeQueueNums=" + writeQueueNums + ", perm=" + perm + ", topicSysFlag=" + topicSysFlag
+                + "]";
     }
 
     @Override

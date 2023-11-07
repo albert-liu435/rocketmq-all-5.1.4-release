@@ -88,7 +88,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 通过netty启动通信服务
+ * Netty 服务器
  */
 @SuppressWarnings("NullableProblems")
 public class NettyRemotingServer extends NettyRemotingAbstract implements RemotingServer {
@@ -96,16 +96,18 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     private static final Logger TRAFFIC_LOGGER = LoggerFactory.getLogger(LoggerName.ROCKETMQ_TRAFFIC_NAME);
 
     private final ServerBootstrap serverBootstrap;
+    //这个其实就是netty中的work线程池，默认用来处理Handler方法的调用
     private final EventLoopGroup eventLoopGroupSelector;
+    // Netty的Boss线程
     private final EventLoopGroup eventLoopGroupBoss;
     private final NettyServerConfig nettyServerConfig;
-
+    // 公共线程池，这里用来处理RocketMQ的业务调用，这个有Netty没有什么关系
     private final ExecutorService publicExecutor;
     private final ScheduledExecutorService scheduledExecutorService;
     private final ChannelEventListener channelEventListener;
 
     private final HashedWheelTimer timer = new HashedWheelTimer(r -> new Thread(r, "ServerHouseKeepingService"));
-
+    // 用来处理Handler的线程池
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     /**
@@ -349,6 +351,12 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         this.processorTable.put(requestCode, pair);
     }
 
+    /**
+     * 注册默认处理器和线程池
+     *
+     * @param processor
+     * @param executor
+     */
     @Override
     public void registerDefaultProcessor(NettyRequestProcessor processor, ExecutorService executor) {
         this.defaultRequestProcessorPair = new Pair<>(processor, executor);

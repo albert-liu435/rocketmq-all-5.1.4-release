@@ -86,6 +86,9 @@ import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.remoting.proxy.SocksProxyConfig;
 
+/**
+ * Netty 客户端
+ */
 public class NettyRemotingClient extends NettyRemotingAbstract implements RemotingClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
 

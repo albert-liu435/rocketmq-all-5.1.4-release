@@ -17,12 +17,14 @@
 package org.apache.rocketmq.broker.topic;
 
 import com.alibaba.fastjson.JSON;
+
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.BrokerPathConfigHelper;
 import org.apache.rocketmq.common.ConfigManager;
@@ -42,6 +44,9 @@ import org.apache.rocketmq.remoting.rpc.TopicRequestHeader;
 
 import static org.apache.rocketmq.remoting.protocol.RemotingCommand.buildErrorResponse;
 
+/**
+ * topic 队列mapping 管理类
+ */
 public class TopicQueueMappingManager extends ConfigManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
@@ -116,7 +121,7 @@ public class TopicQueueMappingManager extends ConfigManager {
             }
             topicQueueMappingTable.put(newDetail.getTopic(), newDetail);
             updated = true;
-        }  finally {
+        } finally {
             if (locked) {
                 this.lock.unlock();
             }
@@ -160,7 +165,7 @@ public class TopicQueueMappingManager extends ConfigManager {
     @Override
     public String configFilePath() {
         return BrokerPathConfigHelper.getTopicQueueMappingPath(this.brokerController.getMessageStoreConfig()
-            .getStorePathRootDir());
+                .getStorePathRootDir());
     }
 
     @Override
@@ -186,6 +191,12 @@ public class TopicQueueMappingManager extends ConfigManager {
         return buildTopicQueueMappingContext(requestHeader, false);
     }
 
+    /**
+     * 构建topic 队列mapping 上下文
+     * @param requestHeader
+     * @param selectOneWhenMiss
+     * @return
+     */
     //Do not return a null context
     public TopicQueueMappingContext buildTopicQueueMappingContext(TopicRequestHeader requestHeader, boolean selectOneWhenMiss) {
         // if lo is set to false explicitly, it maybe the forwarded request
@@ -195,7 +206,7 @@ public class TopicQueueMappingManager extends ConfigManager {
         }
         String topic = requestHeader.getTopic();
         Integer globalId = null;
-        if (requestHeader instanceof  TopicQueueRequestHeader) {
+        if (requestHeader instanceof TopicQueueRequestHeader) {
             globalId = ((TopicQueueRequestHeader) requestHeader).getQueueId();
         }
 
@@ -225,7 +236,7 @@ public class TopicQueueMappingManager extends ConfigManager {
             }
         }
         if (globalId < 0) {
-            return new TopicQueueMappingContext(topic, globalId,  mappingDetail, null, null);
+            return new TopicQueueMappingContext(topic, globalId, mappingDetail, null, null);
         }
 
         List<LogicQueueMappingItem> mappingItemList = TopicQueueMappingDetail.getMappingInfo(mappingDetail, globalId);
@@ -238,7 +249,7 @@ public class TopicQueueMappingManager extends ConfigManager {
     }
 
 
-    public  RemotingCommand rewriteRequestForStaticTopic(TopicQueueRequestHeader requestHeader, TopicQueueMappingContext mappingContext) {
+    public RemotingCommand rewriteRequestForStaticTopic(TopicQueueRequestHeader requestHeader, TopicQueueMappingContext mappingContext) {
         try {
             if (mappingContext.getMappingDetail() == null) {
                 return null;

@@ -75,6 +75,9 @@ import static org.apache.rocketmq.broker.metrics.BrokerMetricsConstant.LABEL_MES
 import static org.apache.rocketmq.broker.metrics.BrokerMetricsConstant.LABEL_TOPIC;
 import static org.apache.rocketmq.remoting.protocol.RemotingCommand.buildErrorResponse;
 
+/**
+ * SendMessageProcessor是netty请求处理器。负责SEND_MESSAGE，SEND_MESSAGE_V2，SEND_BATCH_MESSAGE，CONSUMER_SEND_MSG_BACK四种code的处理
+ */
 public class SendMessageProcessor extends AbstractSendMessageProcessor implements NettyRequestProcessor {
 
     public SendMessageProcessor(final BrokerController brokerController) {
@@ -93,8 +96,11 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
     public RemotingCommand processRequest(ChannelHandlerContext ctx,
                                           RemotingCommand request) throws RemotingCommandException {
         SendMessageContext sendMessageContext;
+        //请求code
         switch (request.getCode()) {
+            //
             case RequestCode.CONSUMER_SEND_MSG_BACK:
+
                 return this.consumerSendMsgBack(ctx, request);
             default:
                 //解析发送请求
@@ -102,11 +108,14 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                 if (requestHeader == null) {
                     return null;
                 }
+
                 TopicQueueMappingContext mappingContext = this.brokerController.getTopicQueueMappingManager().buildTopicQueueMappingContext(requestHeader, true);
                 RemotingCommand rewriteResult = this.brokerController.getTopicQueueMappingManager().rewriteRequestForStaticTopic(requestHeader, mappingContext);
+
                 if (rewriteResult != null) {
                     return rewriteResult;
                 }
+
                 sendMessageContext = buildMsgContext(ctx, requestHeader, request);
                 try {
                     //执行保存前的hook
@@ -245,11 +254,11 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
      * 保存消息
      *
      * @param ctx
-     * @param request
-     * @param sendMessageContext
-     * @param requestHeader
+     * @param request             请求命令
+     * @param sendMessageContext  消息上下文
+     * @param requestHeader       请求header
      * @param mappingContext
-     * @param sendMessageCallback
+     * @param sendMessageCallback 毁掉函数
      * @return
      * @throws RemotingCommandException
      */
@@ -260,6 +269,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                                        final TopicQueueMappingContext mappingContext,
                                        final SendMessageCallback sendMessageCallback) throws RemotingCommandException {
 
+        //预发送
         final RemotingCommand response = preSend(ctx, request, requestHeader);
         if (response.getCode() != -1) {
             return response;
@@ -270,6 +280,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         final byte[] body = request.getBody();
 
         int queueIdInt = requestHeader.getQueueId();
+        //topic 配置
         TopicConfig topicConfig = this.brokerController.getTopicConfigManager().selectTopicConfig(requestHeader.getTopic());
 
         if (queueIdInt < 0) {
@@ -279,7 +290,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
         msgInner.setTopic(requestHeader.getTopic());
         msgInner.setQueueId(queueIdInt);
-
+        //string转化为map数据
         Map<String, String> oriProps = MessageDecoder.string2messageProperties(requestHeader.getProperties());
         // 死信和重试消息处理
         if (!handleRetryAndDLQ(requestHeader, response, request, msgInner, topicConfig, oriProps)) {

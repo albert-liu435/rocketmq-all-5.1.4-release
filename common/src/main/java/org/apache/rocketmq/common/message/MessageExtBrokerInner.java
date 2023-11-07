@@ -20,6 +20,9 @@ import java.nio.ByteBuffer;
 
 import org.apache.rocketmq.common.TopicFilterType;
 
+/**
+ * 消息扩展
+ */
 public class MessageExtBrokerInner extends MessageExt {
     private static final long serialVersionUID = 7256001576878700634L;
     private String propertiesString;
@@ -38,7 +41,9 @@ public class MessageExtBrokerInner extends MessageExt {
     }
 
     public static long tagsString2tagsCode(final TopicFilterType filter, final String tags) {
-        if (null == tags || tags.length() == 0) { return 0; }
+        if (null == tags || tags.length() == 0) {
+            return 0;
+        }
 
         return tags.hashCode();
     }

@@ -26,11 +26,14 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+/**
+ * 解码器
+ */
 public class NettyDecoder extends LengthFieldBasedFrameDecoder {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
 
     private static final int FRAME_MAX_LENGTH =
-        Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
+            Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
 
     public NettyDecoder() {
         super(FRAME_MAX_LENGTH, 0, 4, 0, 4);

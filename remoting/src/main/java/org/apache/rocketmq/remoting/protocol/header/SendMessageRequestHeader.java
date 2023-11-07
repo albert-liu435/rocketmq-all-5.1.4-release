@@ -170,11 +170,20 @@ public class SendMessageRequestHeader extends TopicQueueRequestHeader {
         this.batch = batch;
     }
 
+    /**
+     * 解析请求header
+     *
+     * @param request
+     * @return
+     * @throws RemotingCommandException
+     */
     public static SendMessageRequestHeader parseRequestHeader(RemotingCommand request) throws RemotingCommandException {
         SendMessageRequestHeaderV2 requestHeaderV2 = null;
         SendMessageRequestHeader requestHeader = null;
         switch (request.getCode()) {
+            //批量消息
             case RequestCode.SEND_BATCH_MESSAGE:
+                //对请求header进行解码
             case RequestCode.SEND_MESSAGE_V2:
                 requestHeaderV2 =
                         (SendMessageRequestHeaderV2) request
