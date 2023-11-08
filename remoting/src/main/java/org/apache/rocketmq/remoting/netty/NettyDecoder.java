@@ -28,6 +28,11 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 /**
  * 解码器
+ * <p>
+ * 这是输入时的一个处理器，NettyDecoder 负责在接收请求时对 ByteBuf 解码，将其转成 RemotingCommand。
+ * <p>
+ * NettyDecoder 继承自 LengthFieldBasedFrameDecoder，也就是说它是基于固定长度的一个解码器。可以看到默认长度为 16777216，也就是 16M，就是说单次请求最大不能超过 16M 的数据，
+ * 否则就会报错，当然可以通过参数 com.rocketmq.remoting.frameMaxLength 修改这个限制。
  */
 public class NettyDecoder extends LengthFieldBasedFrameDecoder {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
@@ -36,6 +41,8 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
             Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
 
     public NettyDecoder() {
+        //从构造方法可以看出，消息的前4个字节用来表示消息的总长度，所以在编码的时候，前 4 个字节一定会写入消息的总长度，然后它的第五个参数（initialBytesToStrip）表示要去掉前4个字节，所以在 decode 中拿到的 ByteBuf 是不包含这个总长度的。
+        // 从0开始，用4个字节来表示长度，解码时删除前4个字节
         super(FRAME_MAX_LENGTH, 0, 4, 0, 4);
     }
 
@@ -48,6 +55,7 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
             if (null == frame) {
                 return null;
             }
+            // ByteBuf 解码为 RemotingCommand
             RemotingCommand cmd = RemotingCommand.decode(frame);
             cmd.setProcessTimer(timer);
             return cmd;
@@ -56,6 +64,7 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
             RemotingHelper.closeChannel(ctx.channel());
         } finally {
             if (null != frame) {
+                // 释放资源
                 frame.release();
             }
         }

@@ -26,6 +26,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.remoting.protocol.DataVersion;
@@ -94,6 +95,7 @@ public class Configuration {
     }
 
     /**
+     * 注册config properties
      * register config properties
      *
      * @return the current Configuration object
@@ -135,7 +137,7 @@ public class Configuration {
                 // check
                 this.storePathField = object.getClass().getDeclaredField(fieldName);
                 assert this.storePathField != null
-                    && !Modifier.isStatic(this.storePathField.getModifiers());
+                        && !Modifier.isStatic(this.storePathField.getModifiers());
                 this.storePathField.setAccessible(true);
             } catch (NoSuchFieldException e) {
                 throw new RuntimeException(e);

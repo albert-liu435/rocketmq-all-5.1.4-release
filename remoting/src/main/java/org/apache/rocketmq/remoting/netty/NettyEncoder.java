@@ -28,16 +28,27 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 /**
  * 编码器
+ * NettyEncoder 就是负责在发送请求时对 RemotingCommand 进行编码，将其转成 ByteBuf。
  */
 @ChannelHandler.Sharable
 public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
 
+    /**
+     * 它的逻辑很简单，调用 RemotingCommand 的 fastEncodeHeader 方法编码，将请求头 RemotingCommand 转成字节然后写入 ByteBuf 中。之后再将请求体 body 再写入 ByteBuf 中，注意它这里是将 RemotingCommand 和 body 分开写入的。
+     *
+     * @param ctx             the {@link ChannelHandlerContext} which this {@link MessageToByteEncoder} belongs to
+     * @param remotingCommand the message to encode
+     * @param out             the {@link ByteBuf} into which the encoded message will be written
+     * @throws Exception
+     */
     @Override
     public void encode(ChannelHandlerContext ctx, RemotingCommand remotingCommand, ByteBuf out)
             throws Exception {
         try {
+            // 对 RemotingCommand 编码，将数据写入 ByteBuf 中（不包含body）
             remotingCommand.fastEncodeHeader(out);
+            // 若果有 body，则写入 body
             byte[] body = remotingCommand.getBody();
             if (body != null) {
                 out.writeBytes(body);
@@ -47,6 +58,7 @@ public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
             if (remotingCommand != null) {
                 log.error(remotingCommand.toString());
             }
+            // 关闭通道
             RemotingHelper.closeChannel(ctx.channel());
         }
     }

@@ -95,19 +95,26 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     private static final Logger log = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
     private static final Logger TRAFFIC_LOGGER = LoggerFactory.getLogger(LoggerName.ROCKETMQ_TRAFFIC_NAME);
 
+    // Netty网络服务器（服务端启动类）
     private final ServerBootstrap serverBootstrap;
     //这个其实就是netty中的work线程池，默认用来处理Handler方法的调用
+    // 负责处理网络IO请求读取和处理的线程组
     private final EventLoopGroup eventLoopGroupSelector;
     // Netty的Boss线程
+    // 负责和客户端建立网络连接的线程组
     private final EventLoopGroup eventLoopGroupBoss;
+    // Netty Server 配置
     private final NettyServerConfig nettyServerConfig;
     // 公共线程池，这里用来处理RocketMQ的业务调用，这个有Netty没有什么关系
     private final ExecutorService publicExecutor;
     private final ScheduledExecutorService scheduledExecutorService;
+    // 通道事件监听器
     private final ChannelEventListener channelEventListener;
+    // 定时任务
 
     private final HashedWheelTimer timer = new HashedWheelTimer(r -> new Thread(r, "ServerHouseKeepingService"));
     // 用来处理Handler的线程池
+    // 默认执行器线程组
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     /**
@@ -125,8 +132,11 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     // sharable handlers
     private TlsModeHandler tlsModeHandler;
+    // 编码器
     private NettyEncoder encoder;
+    // 连接管理器
     private NettyConnectManageHandler connectionManageHandler;
+    // Netty 服务端处理器
     private NettyServerHandler serverHandler;
     private RemotingCodeDistributionHandler distributionHandler;
 
@@ -134,19 +144,35 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         this(nettyServerConfig, null);
     }
 
+    /**
+     * 创建 Netty 服务器 ServerBootstrap
+     * 创建固定线程数的公共执行器，默认的线程数为 4
+     * 根据不同平台，使用不同的 EventLoopGroup
+     * 最后加载 SSL 配置
+     *
+     * @param nettyServerConfig
+     * @param channelEventListener
+     */
     public NettyRemotingServer(final NettyServerConfig nettyServerConfig,
                                final ChannelEventListener channelEventListener) {
+        // OneWay 和异步请求 的请求信号量限制，默认为 256、64
         super(nettyServerConfig.getServerOnewaySemaphoreValue(), nettyServerConfig.getServerAsyncSemaphoreValue());
+        // Netty Server 启动类
         this.serverBootstrap = new ServerBootstrap();
+        // Netty 配置
         this.nettyServerConfig = nettyServerConfig;
+        // 通道事件监听器
         this.channelEventListener = channelEventListener;
 
+        // 公共线程池，用于执行回调
         this.publicExecutor = buildPublicExecutor(nettyServerConfig);
         this.scheduledExecutorService = buildScheduleExecutor();
-
+        // boss group：负责和客户端建立网络连接的线程组，只有一个线程
         this.eventLoopGroupBoss = buildBossEventLoopGroup();
+        // worker group：负责处理网络IO请求读取和处理的线程组，默认是3个线程
         this.eventLoopGroupSelector = buildEventLoopGroupSelector();
 
+        // 加载 SSL 配置
         loadSslContext();
     }
 
@@ -159,9 +185,12 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     private EventLoopGroup buildBossEventLoopGroup() {
+        // Linux 平台下使用 epoll
         if (useEpoll()) {
+            // boss group：负责和客户端建立网络连接的线程组，只有一个线程
             return new EpollEventLoopGroup(1, new ThreadFactoryImpl("NettyEPOLLBoss_"));
         } else {
+            // boss group
             return new NioEventLoopGroup(1, new ThreadFactoryImpl("NettyNIOBoss_"));
         }
     }
@@ -203,24 +232,39 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     /**
      * 启动服务用于接受请求
+     * 创建默认的处理器线程池DefaultEventExecutorGroup，这个主要用于执行自定义的处理器的业务逻辑
+     * 初始化处理器，就是成员属性中的 HandshakeHandler、NettyEncoder、NettyConnectManageHandler、NettyServerHandler 几个处理器。
+     * 接着就是最核心的配置ServerBootstrap，添加一系列的处理器，然后绑定（bind）监听的端口（9876），至此服务器启动成功。
+     * 接着启动NettyEventExecutor，它是 NettyRemotingAbstract 中定义的，主要的作用就是处理 Netty 事件
+     * 最后启动一个定时任务，每隔1秒扫描一次 responseTable，关于 responseTable 在上篇文章中已经介绍过，它就是在发送请求时，会封装 ResponseFuture 放进这个响应表中。
      */
     @Override
     public void start() {
+        // 默认业务执行器线程组
+        // 业务线程组，默认8个线程
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),
                 new ThreadFactoryImpl("NettyServerCodecThread_"));
-
+        // 初始化处理器
         prepareSharableHandlers();
 
         // 启动ServerBootstrap，最终请求交由NettyServerHandler处理
 //        至此Netty服务端启动，开始接收生产者的请求，Netty收到请求后，核心业务逻辑交给NettyServerHandler来执行
+        // 设置 bossGroup 和 workerGroup 线程组
         serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
+                // 设置网络通信通道，负责监听指定的端口
                 .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+                // SO_BACKLOG 设置全连接队列大小，默认 1024
                 .option(ChannelOption.SO_BACKLOG, 1024)
+                // SO_REUSEADDR 让端口释放后立即就可以被再次使用
                 .option(ChannelOption.SO_REUSEADDR, true)
+                // 不保持网络连接
                 .childOption(ChannelOption.SO_KEEPALIVE, false)
+                //禁用Nagle算法，Nagle算法的作用是减少小包的数量
                 .childOption(ChannelOption.TCP_NODELAY, true)
+                // 绑定本地监听的端口，配置的为 9876
                 .localAddress(new InetSocketAddress(this.nettyServerConfig.getBindAddress(),
                         this.nettyServerConfig.getListenPort()))
+                // 添加处理器
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     public void initChannel(SocketChannel ch) {
@@ -228,9 +272,11 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     }
                 });
 
+
         addCustomConfig(serverBootstrap);
 
         try {
+            // 绑定要监听的端口，sync() 同步等待完成
             ChannelFuture sync = serverBootstrap.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             if (0 == nettyServerConfig.getListenPort()) {
@@ -243,11 +289,12 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             throw new IllegalStateException(String.format("Failed to bind to %s:%d", nettyServerConfig.getBindAddress(),
                     nettyServerConfig.getListenPort()), e);
         }
-
+        // 启动 Netty 事件执行器，开始消费 Netty 事件
         if (this.channelEventListener != null) {
             this.nettyEventExecutor.start();
         }
 
+        // 每隔 1 秒扫描一次 超时过期的请求
         TimerTask timerScanResponseTable = new TimerTask() {
             @Override
             public void run(Timeout timeout) {
@@ -272,6 +319,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     /**
+     * 配置处理器
      * config channel in ChannelInitializer
      *
      * @param ch the SocketChannel needed to init
@@ -279,36 +327,47 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      */
     protected ChannelPipeline configChannel(SocketChannel ch) {
         return ch.pipeline()
+                // 添加握手处理器
                 .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, new HandshakeHandler())
+                // 添加其它处理器
                 .addLast(defaultEventExecutorGroup,
+                        // 编码器，RemotingCommand 转为 ByteBuf
                         encoder,
+                        // 解码器，ByteBuf 转为 RemotingCommand
                         new NettyDecoder(),
                         distributionHandler,
+                        // 空闲状态处理器，默认空闲时间为 120s
                         new IdleStateHandler(0, 0,
                                 nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
+                        /// 连接管理器
                         connectionManageHandler,
                         // 处理核心业务的Handler
+                        // 服务端处理器
                         serverHandler
                 );
     }
 
     private void addCustomConfig(ServerBootstrap childHandler) {
         if (nettyServerConfig.getServerSocketSndBufSize() > 0) {
+            // SO_SNDBUF，TCP发送缓冲区的容量上限，默认为 默认64k
             log.info("server set SO_SNDBUF to {}", nettyServerConfig.getServerSocketSndBufSize());
             childHandler.childOption(ChannelOption.SO_SNDBUF, nettyServerConfig.getServerSocketSndBufSize());
         }
         if (nettyServerConfig.getServerSocketRcvBufSize() > 0) {
+            // SO_RCVBUF：TCP接受缓冲区的容量上限，默认为 64k
             log.info("server set SO_RCVBUF to {}", nettyServerConfig.getServerSocketRcvBufSize());
             childHandler.childOption(ChannelOption.SO_RCVBUF, nettyServerConfig.getServerSocketRcvBufSize());
         }
         if (nettyServerConfig.getWriteBufferLowWaterMark() > 0 && nettyServerConfig.getWriteBufferHighWaterMark() > 0) {
             log.info("server set netty WRITE_BUFFER_WATER_MARK to {},{}",
                     nettyServerConfig.getWriteBufferLowWaterMark(), nettyServerConfig.getWriteBufferHighWaterMark());
+            // WRITE_BUFFER_WATER_MARK，配置高低水位线
             childHandler.childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
                     nettyServerConfig.getWriteBufferLowWaterMark(), nettyServerConfig.getWriteBufferHighWaterMark()));
         }
 
         if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
+            // 设置Buffer分配器，采用池化的模式
             childHandler.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
     }
@@ -340,9 +399,17 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 注册处理器时，如果没有传入线程池，则使用公共线程池
+     *
+     * @param requestCode
+     * @param processor
+     * @param executor
+     */
     @Override
     public void registerProcessor(int requestCode, NettyRequestProcessor processor, ExecutorService executor) {
         ExecutorService executorThis = executor;
+        // 线程池为 null，则默认用公共线程池
         if (null == executor) {
             executorThis = this.publicExecutor;
         }
@@ -466,6 +533,11 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         return distributionHandler;
     }
 
+    /**
+     * 握手处理器
+     * HandshakeHandler 是一个通道输入处理器，它的主要功能是判断客户端是否要建立 SSL/TLS 连接，如果是的，则向管道（ChannelPipeline）中添加 SslHandler 和 FileRegionEncoder 两个处理器。
+     * 客户端如果要开启 SSL/TLS 加密功能，也需要添加 SslHandler 处理器，它会在发送数据时对数据加密，服务端接收到数据时则对数据解密。
+     */
     public class HandshakeHandler extends ByteToMessageDecoder {
 
         public HandshakeHandler() {
@@ -499,11 +571,15 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * TlsModeHandler 是一个通道输入处理器，它的主要功能是判断客户端是否要建立 SSL/TLS 连接，如果是的，则向管道（ChannelPipeline）中添加 SslHandler 和 FileRegionEncoder 两个处理器。
+     * 客户端如果要开启 SSL/TLS 加密功能，也需要添加 SslHandler 处理器，它会在发送数据时对数据加密，服务端接收到数据时则对数据解密。
+     */
     @ChannelHandler.Sharable
     public class TlsModeHandler extends SimpleChannelInboundHandler<ByteBuf> {
-
+        // 模式：DISABLED（禁用）、PERMISSIVE（可选的）、ENFORCING（强制加密）
         private final TlsMode tlsMode;
-
+        // 建立 SSL 握手标识
         private static final byte HANDSHAKE_MAGIC_CODE = 0x16;
 
         TlsModeHandler(TlsMode tlsMode) {
@@ -513,18 +589,21 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
 
+            // 读取第一个字节
             // Peek the current read index byte to determine if the content is starting with TLS handshake
             byte b = msg.getByte(msg.readerIndex());
-
+            // SSL/TLS  握手
             if (b == HANDSHAKE_MAGIC_CODE) {
                 switch (tlsMode) {
                     case DISABLED:
+                        // 服务端禁用SSL，客户端开启SSL，关闭通道
                         ctx.close();
                         log.warn("Clients intend to establish an SSL connection while this server is running in SSL disabled mode");
                         throw new UnsupportedOperationException("The NettyRemotingServer in SSL disabled mode doesn't support ssl client");
                     case PERMISSIVE:
                     case ENFORCING:
                         if (null != sslContext) {
+                            // 如果需要加密，添加 SslHandler、FileRegionEncoder 两个处理器
                             ctx.pipeline()
                                     .addAfter(defaultEventExecutorGroup, TLS_MODE_HANDLER, TLS_HANDLER_NAME, sslContext.newHandler(ctx.channel().alloc()))
                                     .addAfter(defaultEventExecutorGroup, TLS_HANDLER_NAME, FILE_REGION_ENCODER_NAME, new FileRegionEncoder());
@@ -540,22 +619,29 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                         break;
                 }
             } else if (tlsMode == TlsMode.ENFORCING) {
+                // 强制SSL校验，客户端没有SSL认证，则直接关闭通道
                 ctx.close();
                 log.warn("Clients intend to establish an insecure connection while this server is running in SSL enforcing mode");
             }
 
             try {
+                // 移除当前处理器，避免循环处理
                 // Remove this handler
                 ctx.pipeline().remove(this);
             } catch (NoSuchElementException e) {
                 log.error("Error while removing TlsModeHandler", e);
             }
 
+
+            // 触发后续的处理器继续操作
             // Hand over this message to the next .
             ctx.fireChannelRead(msg.retain());
         }
     }
 
+    /**
+     * 服务端处理器
+     */
     @ChannelHandler.Sharable
     public class NettyServerHandler extends SimpleChannelInboundHandler<RemotingCommand> {
 
@@ -571,6 +657,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             int localPort = RemotingHelper.parseSocketAddressPort(ctx.channel().localAddress());
             NettyRemotingAbstract remotingAbstract = NettyRemotingServer.this.remotingServerTable.get(localPort);
             if (localPort != -1 && remotingAbstract != null) {
+                // 处理器消息的接收
                 remotingAbstract.processMessageReceived(ctx, msg);
                 return;
             }
@@ -596,6 +683,10 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 连接管理器
+     * NettyConnectManageHandler 的主要功能是，在各种事件发生时，如果连接激活、关闭、空闲、异常等事件发生时，去发布一个 Netty 事件。
+     */
     @ChannelHandler.Sharable
     public class NettyConnectManageHandler extends ChannelDuplexHandler {
         @Override
@@ -617,7 +708,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             final String remoteAddress = RemotingHelper.parseChannelRemoteAddr(ctx.channel());
             log.info("NETTY SERVER PIPELINE: channelActive, the channel[{}]", remoteAddress);
             super.channelActive(ctx);
-
+            // 发布连接事件
             if (NettyRemotingServer.this.channelEventListener != null) {
                 NettyRemotingServer.this.putNettyEvent(new NettyEvent(NettyEventType.CONNECT, remoteAddress, ctx.channel()));
             }

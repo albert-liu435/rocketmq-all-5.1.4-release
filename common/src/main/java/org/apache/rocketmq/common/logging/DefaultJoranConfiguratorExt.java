@@ -24,6 +24,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
 import org.apache.rocketmq.logging.ch.qos.logback.classic.ClassicConstants;
 import org.apache.rocketmq.logging.ch.qos.logback.classic.LoggerContext;
 import org.apache.rocketmq.logging.ch.qos.logback.classic.util.DefaultJoranConfigurator;
@@ -34,6 +35,9 @@ import org.apache.rocketmq.logging.ch.qos.logback.core.status.StatusManager;
 import org.apache.rocketmq.logging.ch.qos.logback.core.util.Loader;
 import org.apache.rocketmq.logging.ch.qos.logback.core.util.OptionHelper;
 
+/**
+ * 日志配置类
+ */
 public class DefaultJoranConfiguratorExt extends DefaultJoranConfigurator {
 
     final public static String TEST_AUTOCONFIG_FILE = "rmq.logback-test.xml";
@@ -87,7 +91,7 @@ public class DefaultJoranConfiguratorExt extends DefaultJoranConfigurator {
             configurator.doConfigure0(url);
         } else {
             throw new LogbackException(
-                "Unexpected filename extension of file [" + url + "]. Should be .xml");
+                    "Unexpected filename extension of file [" + url + "]. Should be .xml");
         }
     }
 

@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.namesrv.NamesrvConfig;
@@ -29,11 +30,13 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import org.apache.rocketmq.remoting.protocol.header.namesrv.UnRegisterBrokerRequestHeader;
 
 /**
+ * BatchUnregisteringService提供了一种以批处理方式注销代理的机制，这加快了代理脱机的速度
  * BatchUnregistrationService provides a mechanism to unregister brokers in batch manner, which speeds up broker-offline
  * process.
  */
 public class BatchUnregistrationService extends ServiceThread {
     private final RouteInfoManager routeInfoManager;
+    // 注销Broker请求队列
     private BlockingQueue<UnRegisterBrokerRequestHeader> unregistrationQueue;
     private static final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
@@ -43,6 +46,7 @@ public class BatchUnregistrationService extends ServiceThread {
     }
 
     /**
+     * 提交注销请求到队列中
      * Submits an unregister request to this queue.
      *
      * @param unRegisterRequest the request to submit
@@ -61,13 +65,16 @@ public class BatchUnregistrationService extends ServiceThread {
     public void run() {
         while (!this.isStopped()) {
             try {
+                // 调用take方法会阻塞
                 final UnRegisterBrokerRequestHeader request = unregistrationQueue.take();
                 Set<UnRegisterBrokerRequestHeader> unregistrationRequests = new HashSet<>();
+                // 拿到请求后,把所有的Request加到未注册的requestSet中
+                //即将队列中的所有请求放到unregistrationRequests中,此时unregistrationQueue队列会变成0
                 unregistrationQueue.drainTo(unregistrationRequests);
 
                 // Add polled request
                 unregistrationRequests.add(request);
-
+                // 调用注销broker
                 this.routeInfoManager.unRegisterBroker(unregistrationRequests);
             } catch (Throwable e) {
                 log.error("Handle unregister broker request failed", e);

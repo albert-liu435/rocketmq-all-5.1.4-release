@@ -149,6 +149,8 @@ public class NamesrvController {
      * 启动定时任务
      */
     private void startScheduleService() {
+
+
         //任务1、每隔 5s 扫描 broker ,移除处于未激活状态的broker,维护当前存活的Broker信息。
         this.scanExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker,
                 5, this.namesrvConfig.getScanNotActiveBrokerInterval(), TimeUnit.MILLISECONDS);
@@ -281,7 +283,7 @@ public class NamesrvController {
         if (0 == nettyServerConfig.getListenPort()) {
             nettyServerConfig.setListenPort(this.remotingServer.localListenPort());
         }
-
+        //更新Name server地址列表
         this.remotingClient.updateNameServerAddressList(Collections.singletonList(NetworkUtil.getLocalAddress()
                 + ":" + nettyServerConfig.getListenPort()));
         //启动服务

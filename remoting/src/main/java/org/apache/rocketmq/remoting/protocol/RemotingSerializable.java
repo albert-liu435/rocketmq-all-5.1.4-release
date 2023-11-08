@@ -22,6 +22,9 @@ import com.alibaba.fastjson.serializer.SerializerFeature;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * 序列化
+ */
 public abstract class RemotingSerializable {
     private final static Charset CHARSET_UTF8 = StandardCharsets.UTF_8;
 

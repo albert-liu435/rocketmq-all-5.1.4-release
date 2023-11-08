@@ -22,6 +22,10 @@ import io.netty.channel.Channel;
  * 事件监听器
  */
 public interface ChannelEventListener {
+    /**
+     * @param remoteAddr
+     * @param channel
+     */
     void onChannelConnect(final String remoteAddr, final Channel channel);
 
     void onChannelClose(final String remoteAddr, final Channel channel);

@@ -125,6 +125,12 @@ public class RouteInfoManager {
         this.unRegisterService.shutdown(true);
     }
 
+    /**
+     * 提交到队列中
+     *
+     * @param unRegisterRequest
+     * @return
+     */
     public boolean submitUnRegisterBrokerRequest(UnRegisterBrokerRequestHeader unRegisterRequest) {
         return this.unRegisterService.submit(unRegisterRequest);
     }
@@ -652,13 +658,18 @@ public class RouteInfoManager {
         unRegisterBroker(Sets.newHashSet(unRegisterBrokerRequest));
     }
 
+    /**
+     * 注销broker
+     *
+     * @param unRegisterRequests
+     */
     public void unRegisterBroker(Set<UnRegisterBrokerRequestHeader> unRegisterRequests) {
         try {
 
             Set<String> removedBroker = new HashSet<>();
             Set<String> reducedBroker = new HashSet<>();
             Map<String, BrokerStatusChangeInfo> needNotifyBrokerMap = new HashMap<>();
-
+            //获取RouteInfoManager中路由操作写锁，循环遍历要注销的请求，并将要注销broker从broker存活table中删除。
             this.lock.writeLock().lockInterruptibly();
             for (final UnRegisterBrokerRequestHeader unRegisterRequest : unRegisterRequests) {
                 final String brokerName = unRegisterRequest.getBrokerName();
@@ -666,28 +677,34 @@ public class RouteInfoManager {
                 final String brokerAddr = unRegisterRequest.getBrokerAddr();
 
                 BrokerAddrInfo brokerAddrInfo = new BrokerAddrInfo(clusterName, brokerAddr);
-
+                // 1.存活的brokerLiveTable要删除brokerAddrInfo
                 BrokerLiveInfo brokerLiveInfo = this.brokerLiveTable.remove(brokerAddrInfo);
                 log.info("unregisterBroker, remove from brokerLiveTable {}, {}",
                         brokerLiveInfo != null ? "OK" : "Failed",
                         brokerAddrInfo
                 );
 
+                //从filterServerTable中注销broker
+                // 2.过滤service删除BrokerAddrInfo
                 this.filterServerTable.remove(brokerAddrInfo);
 
                 boolean removeBrokerName = false;
                 boolean isMinBrokerIdChanged = false;
+                //从brokerAddrTable中获取BrokerData，删除BrokerData要注销的Broker地址，注销完如果BrokerData中存活的broker地址为空，说明brokerName下所有broker都已经注销，则会从brokerAddrTable中删除BrokerData。
+                // 如果要注销的Broker是主节点，还会将当前broker的信息放入到通知map中。
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                 if (null != brokerData) {
                     if (!brokerData.getBrokerAddrs().isEmpty() &&
                             unRegisterRequest.getBrokerId().equals(Collections.min(brokerData.getBrokerAddrs().keySet()))) {
                         isMinBrokerIdChanged = true;
                     }
+                    //  删除brokerData中要下线的broker地址
                     boolean removed = brokerData.getBrokerAddrs().entrySet().removeIf(item -> item.getValue().equals(brokerAddr));
                     log.info("unregisterBroker, remove addr from brokerAddrTable {}, {}",
                             removed ? "OK" : "Failed",
                             brokerAddrInfo
                     );
+                    // 如果broker地址为空，说明当前broker所有节点都宕机了
                     if (brokerData.getBrokerAddrs().isEmpty()) {
                         this.brokerAddrTable.remove(brokerName);
                         log.info("unregisterBroker, remove name from brokerAddrTable OK, {}",
@@ -696,15 +713,19 @@ public class RouteInfoManager {
 
                         removeBrokerName = true;
                     } else if (isMinBrokerIdChanged) {
+                        // 主节点宕机，从节点还存在
                         needNotifyBrokerMap.put(brokerName, new BrokerStatusChangeInfo(
                                 brokerData.getBrokerAddrs(), brokerAddr, null));
                     }
                 }
-
+                //第四步，如果集群中的所有broker都已经注销，则会将clusterAddrTable中的集群信息删除。
+                //如果所有节点都宕机
                 if (removeBrokerName) {
                     Set<String> nameSet = this.clusterAddrTable.get(clusterName);
                     if (nameSet != null) {
+                        // 删除brokerName
                         boolean removed = nameSet.remove(brokerName);
+                        // 如果集群中所有broker都宕机，则删除集群信息
                         log.info("unregisterBroker, remove name from clusterAddrTable {}, {}",
                                 removed ? "OK" : "Failed",
                                 brokerName);
@@ -722,9 +743,12 @@ public class RouteInfoManager {
                 }
             }
 
+            //第五步，清理要注销Broker关联的Topic信息，如果brokerName都已经宕机，则会清除topicQueueTable中BrokerName对应的QueueData。如果要注销的Broker是主节点，则会将brokerAddrTable中当前brokerName的BrokerData置为不可写状态。
+
             cleanTopicByUnRegisterRequests(removedBroker, reducedBroker);
 
             if (!needNotifyBrokerMap.isEmpty() && namesrvConfig.isNotifyMinBrokerIdChanged()) {
+                //第六步，如果broker的主节点宕机，并且在namesrv中开启了主节点宕机通知其他节点的配置，就会通知当前BrokerName的其他节点。
                 notifyMinBrokerIdChanged(needNotifyBrokerMap);
             }
         } catch (Exception e) {
@@ -911,18 +935,25 @@ public class RouteInfoManager {
     }
 
     /**
+     * https://blog.csdn.net/jiaoshi5167/article/details/130052303
      * 清除离线的Broker信息
+     * <p>
+     * 注销请求会提交给BatchUnregistrationService#unregistrationQueue，BatchUnregistrationService继承了Thead，在RouteInfoManager构建时创建，RouteInfoManager启动时也会启动BatchUnregistrationService，它是一个守护线程，在while死循环中获取broker注销请求
+     *
+     *
      * <p>
      * remoteAddr Broker的地址
      * channel    Broker和Name Server之间的连接通道，是一个NioSocketChannel实例
      */
     public void onChannelDestroy(BrokerAddrInfo brokerAddrInfo) {
+
         UnRegisterBrokerRequestHeader unRegisterRequest = new UnRegisterBrokerRequestHeader();
         boolean needUnRegister = false;
         if (brokerAddrInfo != null) {
             try {
                 try {
                     this.lock.readLock().lockInterruptibly();
+                    //清除离线的broker信息
                     needUnRegister = setupUnRegisterRequest(unRegisterRequest, brokerAddrInfo);
                 } finally {
                     this.lock.readLock().unlock();
@@ -1216,9 +1247,12 @@ public class RouteInfoManager {
  * broker address information
  */
 class BrokerAddrInfo {
+    //集群名称
     private String clusterName;
+    //broker地址
     private String brokerAddr;
 
+    //broker的hash code
     private int hash;
 
     public BrokerAddrInfo(String clusterName, String brokerAddr) {
@@ -1348,6 +1382,7 @@ class BrokerLiveInfo {
                 + ", channel=" + channel + ", haServerAddr=" + haServerAddr + "]";
     }
 }
+
 
 class BrokerStatusChangeInfo {
     Map<Long, String> brokerAddrs;

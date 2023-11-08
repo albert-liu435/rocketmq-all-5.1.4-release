@@ -130,6 +130,7 @@ public class FileWatchService extends LifecycleAwareServiceThread {
 
     public interface Listener {
         /**
+         * 目标文件变化后会触发该方法
          * Will be called when the target files are changed
          *
          * @param path the changed file path

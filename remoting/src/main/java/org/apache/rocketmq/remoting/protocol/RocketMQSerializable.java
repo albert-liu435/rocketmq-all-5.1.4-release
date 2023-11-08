@@ -64,12 +64,14 @@ public class RocketMQSerializable {
 
     /**
      * 进行编码
+     * 写入数据时，要记录数据的总长度，它这里在写完后，用结束时的 writerIndex 和起始的 writerIndex 相减得到写入的数据总长度。
      *
      * @param cmd
      * @param out
      * @return
      */
     public static int rocketMQProtocolEncode(RemotingCommand cmd, ByteBuf out) {
+        // 记录初始位置
         int beginIndex = out.writerIndex();
         // int code(~32767)
         out.writeShort(cmd.getCode());
@@ -216,6 +218,14 @@ public class RocketMQSerializable {
         return length;
     }
 
+    /**
+     * 其实就是序列化时的逆向过程，再挨个按顺序将数据读取出来设置到 RemotingCommand 中
+     *
+     * @param headerBuffer
+     * @param headerLen
+     * @return
+     * @throws RemotingCommandException
+     */
     public static RemotingCommand rocketMQProtocolDecode(final ByteBuf headerBuffer,
                                                          int headerLen) throws RemotingCommandException {
         RemotingCommand cmd = new RemotingCommand();

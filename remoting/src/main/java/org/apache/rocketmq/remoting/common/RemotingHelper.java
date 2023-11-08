@@ -103,8 +103,8 @@ public class RemotingHelper {
     }
 
     public static RemotingCommand invokeSync(final String addr, final RemotingCommand request,
-        final long timeoutMillis) throws InterruptedException, RemotingConnectException,
-        RemotingSendRequestException, RemotingTimeoutException, RemotingCommandException {
+                                             final long timeoutMillis) throws InterruptedException, RemotingConnectException,
+            RemotingSendRequestException, RemotingTimeoutException, RemotingCommandException {
         long beginTime = System.currentTimeMillis();
         SocketAddress socketAddress = NetworkUtil.string2SocketAddress(addr);
         SocketChannel socketChannel = connect(socketAddress);
@@ -276,9 +276,9 @@ public class RemotingHelper {
     public static int ipToInt(String ip) {
         String[] ips = ip.split("\\.");
         return (Integer.parseInt(ips[0]) << 24)
-            | (Integer.parseInt(ips[1]) << 16)
-            | (Integer.parseInt(ips[2]) << 8)
-            | Integer.parseInt(ips[3]);
+                | (Integer.parseInt(ips[1]) << 16)
+                | (Integer.parseInt(ips[2]) << 8)
+                | Integer.parseInt(ips[3]);
     }
 
     public static boolean ipInCIDR(String ip, String cidr) {
@@ -324,7 +324,13 @@ public class RemotingHelper {
         return null;
     }
 
+    /**
+     * 关闭TCP长连接
+     *
+     * @param channel
+     */
     public static void closeChannel(Channel channel) {
+        //解析远程地址
         final String addrRemote = RemotingHelper.parseChannelRemoteAddr(channel);
         if ("".equals(addrRemote)) {
             channel.close();
@@ -333,7 +339,7 @@ public class RemotingHelper {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
                     log.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote,
-                        future.isSuccess());
+                            future.isSuccess());
                 }
             });
         }
