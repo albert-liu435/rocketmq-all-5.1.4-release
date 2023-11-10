@@ -30,17 +30,8 @@ import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
 /**
- * https://blog.csdn.net/weixin_43248318/article/details/124032499
- * https://zhuanlan.zhihu.com/p/513814016
- * <p>
- * <p>
- * <p>
- * <p>
- * 在什么场景下要开启TransientStorePool（技术为解决问题而出现）
- * 在 RocketMQ 中，TransientStorePool 是一种优化磁盘 I/O 性能的机制。它通过预分配内存块，将消息写入预分配的内存块（直接内存），然后使用内存映射文件（Memory-Mapped File）将内存块中的数据刷到磁盘，从而提高写入性能。因此，当你需要提高 RocketMQ 的消息写入性能时，可以考虑开启 TransientStorePool。
- * ————————————————
- * 版权声明：本文为CSDN博主「翁正存」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
- * 原文链接：https://blog.csdn.net/Wengzhengcun/article/details/131239995
+ * 来看一下瞬时存储池TransientStorePool的设计。它在创建时池子大小默认是 5，文件大小默认为 commitlog 文件大小（1GB），也就是说这是专门针对 commitlog 的池子。然后用一个Deque双端队列来存储预分配的ByteBuffer对象，
+ * 这个瞬时存储池的对象就是 ByteBuffer。
  */
 public class TransientStorePool {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -81,6 +72,7 @@ public class TransientStorePool {
      * 销毁内存池
      */
     public void destroy() {
+//        然后它的初始化方法 init() 中，会循环分配出5块 ByteBuffer，最后将这块ByteBuffer放入队列中，等待使用。
         //取消对内存的锁定
         for (ByteBuffer byteBuffer : availableBuffers) {
             final long address = ((DirectBuffer) byteBuffer).address();

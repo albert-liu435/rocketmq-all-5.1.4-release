@@ -25,6 +25,9 @@ import org.apache.rocketmq.common.utils.NetworkUtil;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * broker的配置信息
+ */
 public class BrokerConfig extends BrokerIdentity {
 
     private String brokerConfigPath = null;
@@ -313,7 +316,7 @@ public class BrokerConfig extends BrokerIdentity {
 
     /**
      * Whether to lock quorum replicas.
-     *
+     * <p>
      * True: need to lock quorum replicas succeed. False: only need to lock one replica succeed.
      */
     private boolean lockInStrictMode = false;
@@ -377,7 +380,7 @@ public class BrokerConfig extends BrokerIdentity {
     private boolean usePIDColdCtrStrategy = true;
     private long cgColdReadThreshold = 3 * 1024 * 1024;
     private long globalColdReadThreshold = 100 * 1024 * 1024;
-    
+
     /**
      * The interval to fetch namesrv addr, default value is 10 second
      */
@@ -1707,11 +1710,11 @@ public class BrokerConfig extends BrokerIdentity {
     public void setUseStaticSubscription(boolean useStaticSubscription) {
         this.useStaticSubscription = useStaticSubscription;
     }
-    
+
     public long getFetchNamesrvAddrInterval() {
         return fetchNamesrvAddrInterval;
     }
-    
+
     public void setFetchNamesrvAddrInterval(final long fetchNamesrvAddrInterval) {
         this.fetchNamesrvAddrInterval = fetchNamesrvAddrInterval;
     }

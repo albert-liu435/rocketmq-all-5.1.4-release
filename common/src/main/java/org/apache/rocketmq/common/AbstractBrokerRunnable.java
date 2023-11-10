@@ -18,8 +18,12 @@
 package org.apache.rocketmq.common;
 
 import java.io.File;
+
 import org.apache.rocketmq.logging.org.slf4j.MDC;
 
+/**
+ * Runnable的抽象实现类
+ */
 public abstract class AbstractBrokerRunnable implements Runnable {
     protected final BrokerIdentity brokerIdentity;
 

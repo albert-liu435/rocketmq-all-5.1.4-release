@@ -28,11 +28,16 @@ import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+/**
+ * broker标识
+ */
 public class BrokerIdentity {
+    //默认集群名称
     private static final String DEFAULT_CLUSTER_NAME = "DefaultCluster";
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
+    //host 名称
     private static String localHostName;
 
     static {
@@ -50,6 +55,7 @@ public class BrokerIdentity {
     private String brokerName = defaultBrokerName();
     @ImportantField
     private String brokerClusterName = DEFAULT_CLUSTER_NAME;
+    //当brokerId节点为0的时候为master节点
     @ImportantField
     private volatile long brokerId = MixAll.MASTER_ID;
 
@@ -117,7 +123,7 @@ public class BrokerIdentity {
 
     public String getCanonicalName() {
         return isBrokerContainer ? "BrokerContainer" : String.format("%s_%s_%d", brokerClusterName, brokerName,
-            brokerId);
+                brokerId);
     }
 
     public String getIdentifier() {
@@ -137,18 +143,18 @@ public class BrokerIdentity {
         final BrokerIdentity identity = (BrokerIdentity) o;
 
         return new EqualsBuilder()
-            .append(brokerId, identity.brokerId)
-            .append(brokerName, identity.brokerName)
-            .append(brokerClusterName, identity.brokerClusterName)
-            .isEquals();
+                .append(brokerId, identity.brokerId)
+                .append(brokerName, identity.brokerName)
+                .append(brokerClusterName, identity.brokerClusterName)
+                .isEquals();
     }
 
     @Override
     public int hashCode() {
         return new HashCodeBuilder(17, 37)
-            .append(brokerName)
-            .append(brokerClusterName)
-            .append(brokerId)
-            .toHashCode();
+                .append(brokerName)
+                .append(brokerClusterName)
+                .append(brokerId)
+                .toHashCode();
     }
 }

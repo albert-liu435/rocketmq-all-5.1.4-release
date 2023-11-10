@@ -212,6 +212,14 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
         return response;
     }
 
+    /**
+     * NameServer 端的注册逻辑，主要就是将 Broker 信息注册到路由管理器 RouteInfoManager。这块的逻辑前面分析 NameServer 时已经详细分析过了，其实就是将 Broker 信息写入几个内存表中。
+     *
+     * @param ctx
+     * @param request
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand registerBroker(ChannelHandlerContext ctx,
                                           RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);
@@ -230,6 +238,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
 
         Version brokerVersion = MQVersion.value2Version(request.getVersion());
         if (brokerVersion.ordinal() >= MQVersion.Version.V3_0_11.ordinal()) {
+            // Broker 注册参数
             final RegisterBrokerBody registerBrokerBody = extractRegisterBrokerBodyFromRequest(request, requestHeader);
             topicConfigWrapper = registerBrokerBody.getTopicConfigSerializeWrapper();
             filterServerList = registerBrokerBody.getFilterServerList();
@@ -238,6 +247,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             topicConfigWrapper = extractRegisterTopicConfigFromRequest(request);
         }
 
+        // 注册 TopicConfig、FilterServer
         RegisterBrokerResult result = this.namesrvController.getRouteInfoManager().registerBroker(
                 requestHeader.getClusterName(),
                 requestHeader.getBrokerAddr(),
@@ -259,6 +269,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             return response;
         }
 
+        // 返回HA地址、Master地址
         responseHeader.setHaServerAddr(result.getHaServerAddr());
         responseHeader.setMasterAddr(result.getMasterAddr());
 

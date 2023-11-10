@@ -42,6 +42,21 @@ import org.apache.rocketmq.srvutil.ServerUtil;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.MessageStoreConfig;
 
+/**
+ * 一些核心的特性模块如下：
+ * <p>
+ * client：生产者管理器、消费者管理器、Broker-Client调用器等
+ * dledger：基于 DLedger 技术的 Broker 高可用
+ * filter：ConsumerFilter 相关，用于消费者消费消息过滤
+ * filtersrv：FilterServer 相关，基于 FilterServer 服务器进行消息过滤
+ * longpolling：PullRequest 相关，消费者读取消息
+ * offset：ComsumerOffset 相关，消费偏移量管理
+ * processor：Broker 的 Netty 处理器
+ * salve：主从同步组件
+ * subscription：订阅组管理
+ * topic：Topic 管理
+ * transaction：事务管理
+ */
 public class BrokerStartup {
 
     public static Logger log;
@@ -49,10 +64,10 @@ public class BrokerStartup {
 
     public static void main(String[] args) {
 
-//        ## nameserver地址 设置为本地
-//#（设置nameServer的ip:port）
-//namesrvAddr = 127.0.0.1:9876
-//## 这个master节点的ip地址 设置为本地
+        //        ## nameserver地址 设置为本地
+        //#（设置nameServer的ip:port）
+        //namesrvAddr = 127.0.0.1:9876
+        //## 这个master节点的ip地址 设置为本地
         //本地环境问题，不然没有办法创建topic,也可以将其写到配置文件中，如
         System.setProperty(MixAll.NAMESRV_ADDR_PROPERTY, "127.0.0.1:9876");
 
@@ -60,6 +75,12 @@ public class BrokerStartup {
         start(createBrokerController(args));
     }
 
+    /**
+     * 启动控制器
+     *
+     * @param controller
+     * @return
+     */
     public static BrokerController start(BrokerController controller) {
         try {
             /**
@@ -97,6 +118,7 @@ public class BrokerStartup {
         //MQ的版本号
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
 
+        // 创建配置对象
         final BrokerConfig brokerConfig = new BrokerConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
         final NettyClientConfig nettyClientConfig = new NettyClientConfig();
@@ -104,6 +126,7 @@ public class BrokerStartup {
         nettyServerConfig.setListenPort(10911);
         messageStoreConfig.setHaListenPort(0);
 
+        // 创建 POSIX 风格的命令行选项
         Options options = ServerUtil.buildCommandlineOptions(new Options());
         CommandLine commandLine = ServerUtil.parseCmdLine(
                 "mqbroker", args, buildCommandlineOptions(options), new DefaultParser());
@@ -112,6 +135,7 @@ public class BrokerStartup {
         }
 
         Properties properties = null;
+        // -c 参数指定 Broker 配置文件
         if (commandLine.hasOption('c')) {
             String file = commandLine.getOptionValue('c');
             if (file != null) {
@@ -122,6 +146,7 @@ public class BrokerStartup {
         }
 
         if (properties != null) {
+            // 加载配置文件中的配置
             properties2SystemEnv(properties);
             MixAll.properties2Object(properties, brokerConfig);
             MixAll.properties2Object(properties, nettyServerConfig);
@@ -249,6 +274,12 @@ public class BrokerStartup {
         };
     }
 
+    /**
+     * 创建 Broker 控制器
+     *
+     * @param args
+     * @return
+     */
     public static BrokerController createBrokerController(String[] args) {
         try {
             BrokerController controller = buildBrokerController(args);

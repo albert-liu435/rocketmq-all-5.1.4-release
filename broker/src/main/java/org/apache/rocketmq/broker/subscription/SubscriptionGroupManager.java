@@ -17,12 +17,14 @@
 package org.apache.rocketmq.broker.subscription;
 
 import com.google.common.collect.ImmutableMap;
+
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.BrokerPathConfigHelper;
@@ -39,14 +41,17 @@ import org.apache.rocketmq.remoting.protocol.DataVersion;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 import org.apache.rocketmq.remoting.protocol.subscription.SubscriptionGroupConfig;
 
+/**
+ * 订阅组管理器
+ */
 public class SubscriptionGroupManager extends ConfigManager {
     protected static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
     protected ConcurrentMap<String, SubscriptionGroupConfig> subscriptionGroupTable =
-        new ConcurrentHashMap<>(1024);
+            new ConcurrentHashMap<>(1024);
 
     private ConcurrentMap<String, ConcurrentMap<String, Integer>> forbiddenTable =
-        new ConcurrentHashMap<>(4);
+            new ConcurrentHashMap<>(4);
 
     private final DataVersion dataVersion = new DataVersion();
     protected transient BrokerController brokerController;
@@ -142,10 +147,10 @@ public class SubscriptionGroupManager extends ConfigManager {
         Map<String, String> currentAttributes = current(config.getGroupName());
 
         Map<String, String> finalAttributes = AttributeUtil.alterCurrentAttributes(
-            this.subscriptionGroupTable.get(config.getGroupName()) == null,
-            SubscriptionGroupAttributes.ALL,
-            ImmutableMap.copyOf(currentAttributes),
-            ImmutableMap.copyOf(newAttributes));
+                this.subscriptionGroupTable.get(config.getGroupName()) == null,
+                SubscriptionGroupAttributes.ALL,
+                ImmutableMap.copyOf(currentAttributes),
+                ImmutableMap.copyOf(newAttributes));
 
         config.setAttributes(finalAttributes);
 
@@ -278,7 +283,7 @@ public class SubscriptionGroupManager extends ConfigManager {
     @Override
     public String configFilePath() {
         return BrokerPathConfigHelper.getSubscriptionGroupPath(this.brokerController.getMessageStoreConfig()
-            .getStorePathRootDir());
+                .getStorePathRootDir());
     }
 
     @Override
@@ -318,7 +323,7 @@ public class SubscriptionGroupManager extends ConfigManager {
     }
 
     public void setForbiddenTable(
-        ConcurrentMap<String, ConcurrentMap<String, Integer>> forbiddenTable) {
+            ConcurrentMap<String, ConcurrentMap<String, Integer>> forbiddenTable) {
         this.forbiddenTable = forbiddenTable;
     }
 

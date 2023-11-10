@@ -138,7 +138,7 @@ public class CommitLog implements Swappable {
     private final FlushManager flushManager;
 
     private final ColdDataCheckService coldDataCheckService;
-    //消息拼接的类
+    //追加消息回调函数
     private final AppendMessageCallback appendMessageCallback;
 
     private final ThreadLocal<PutMessageThreadLocal> putMessageThreadLocal;
@@ -146,7 +146,7 @@ public class CommitLog implements Swappable {
     protected volatile long confirmOffset = -1L;
 
     private volatile long beginTimeInLock = 0;
-    //消息锁
+    //写入消息锁
     protected final PutMessageLock putMessageLock;
 
     protected final TopicQueueLock topicQueueLock;
@@ -160,7 +160,7 @@ public class CommitLog implements Swappable {
 
     public CommitLog(final DefaultMessageStore messageStore) {
 
-        //存储路径
+        // CommitLog 存储路径，默认在 ${storePathRootDir}/commitlog
         String storePath = messageStore.getMessageStoreConfig().getStorePathCommitLog();
 
         //创建MappedFileQueue对象，传入的路径是配置的CommitLog的文件路径，和默认的文件大小1G，同时传入提前创建MappedFile对象的AllocateMappedFileService
@@ -169,8 +169,11 @@ public class CommitLog implements Swappable {
                     messageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(),
                     messageStore.getAllocateMappedFileService(), this::getFullStorePaths);
         } else {
+            // 将磁盘中的 CommitLog 做 MappedFile 内存映射
             this.mappedFileQueue = new MappedFileQueue(storePath,
+                    // commitlog 文件大小默认为 1GB
                     messageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(),
+                    // AllocateMappedFileService
                     messageStore.getAllocateMappedFileService());
         }
 
@@ -930,22 +933,54 @@ public class CommitLog implements Swappable {
      * 进行刷盘
      * 进行高可用刷盘
      *
+     * <p>
+     * 消息写入的主流程如下：
+     * <p>
+     * <p>
+     * 设置消息存储时间戳、设置消息体 crc32 校验和，避免消息篡改
+     * <p>
+     * <p>
+     * 设置消息来源服务器以及存储服务器的 IPv6 地址标识
+     * <p>
+     * <p>
+     * 获取线程副本 PutMessageThreadLocal，它的内部有一个 MessageExtEncoder 的编码器用于编码消息。
+     * MessageExtEncoder 在消息编码时，就是将消息的一个个属性写入到一个 ByteBuffer 里。正常情况下 PutMessageResult 返回为 null，如果编码失败，比如消息默认不能超过4MB，超长就会认为消息非法然后返回一个 PutMessageResult，这个时候就会直接返回。
+     * <p>
+     * <p>
+     * 如果消息编码成功，就会将编码得到的 ByteBuffer 设置到 MessageExtBrokerInner 里面，然后创建写入消息上下文对象 PutMessageContext。
+     * <p>
+     * <p>
+     * 接下来开始准备写入消息，先用 putMessageLock 加写锁，保证同一时刻只有一个线程能写入消息。从这里可以看出， CommitLog 写入消息是串行的，但后面的 IO 机制能保证串行写入的高性能。
+     * 加锁之后，通过 MappedFileQueue 获取最后一个 MappedFile。前面已经大概了解到，commitlog 目录对应 MappedFileQueue，目录下的文件就对应多个 MappedFile，写满一个切换下一个，所以每次都应该写入最后一个。
+     * 如果获取最后一个 MappedFile 返回 null，那么说明是程序初次启动，还没有 commitlog 文件。这时就会去获取偏移量为 0 的 MappedFile，也就是会创建第一个 commitlog 文件。
+     * 接着就是向这个 MappedFile 追加消息 appendMessage，可以看到参数还传入了 AppendMessageCallback，这是在 MappedFile 写入消息后，就会执行这个回调。
+     * <p>
+     * <p>
+     * 消息追加后，如果消息写满了，将会创建一个写的 MappedFile，继续写入消息。消息写入完成后，最后在 finally 中释放 putMessageLock 锁。
+     * <p>
+     * <p>
+     * 如果MappedFile写满了，且启用了预热机制的情况下，就会调用 unlockMappedFile 解锁文件。这个其实是创建 MappedFile 的时候，如果启用了预热机制，就会提前把磁盘数据加载到内存区域，并调用mlock系统调用锁定 MappedFile 对应的内存区域。这里就是在写满 MappedFile 后，调用munlock系统调用解锁之前锁定的内存区域。这个我们讲 MappedFile 的时候再详细看。
+     * <p>
+     * <p>
+     * 写入消息完了之后就是增加统计信息，统计topic写入次数以及写入消息总量等。
+     * <p>
+     * <p>
+     * 最后就是同步提交 flush 请求和 replica 请求，就是强制刷盘，并将数据同步到 slave 节点，最后返回追加消息结果。
+     *
      * @param msg
      * @return
      */
     public CompletableFuture<PutMessageResult> asyncPutMessage(final MessageExtBrokerInner msg) {
-        //设置消息保存时间和CRC校验码
-        //设置消息的存储时间
-        // Set the storage time
-        //获取当前系统时间作为消息写入时间
+        // 设置存储时间戳
         if (!defaultMessageStore.getMessageStoreConfig().isDuplicationEnable()) {
             msg.setStoreTimestamp(System.currentTimeMillis());
         }
 
         //CRC校验码
         // Set the message body CRC (consider the most appropriate setting on the client)
-        //设置编码后的消息体
+        // 设置消息体 crc32 校验和
         msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
+        // 写入消息返回结果
         // Back to Results
         AppendMessageResult result = null;
 
@@ -961,17 +996,18 @@ public class CommitLog implements Swappable {
         if (autoMessageVersionOnTopicLen && topic.length() > Byte.MAX_VALUE) {
             msg.setVersion(MessageVersion.MESSAGE_VERSION_V2);
         }
-
+        // 消息诞生机器 IPv6 地址标识
         InetSocketAddress bornSocketAddress = (InetSocketAddress) msg.getBornHost();
         if (bornSocketAddress.getAddress() instanceof Inet6Address) {
             msg.setBornHostV6Flag();
         }
-
+        // 消息存储机器 IPv6 地址标识
         InetSocketAddress storeSocketAddress = (InetSocketAddress) msg.getStoreHost();
         if (storeSocketAddress.getAddress() instanceof Inet6Address) {
             msg.setStoreHostAddressV6Flag();
         }
 
+        // 获取线程副本中的消息编码器对消息编码
         PutMessageThreadLocal putMessageThreadLocal = this.putMessageThreadLocal.get();
         updateMaxMessageSize(putMessageThreadLocal);
         //主题队列key
@@ -1028,7 +1064,9 @@ public class CommitLog implements Swappable {
             if (encodeResult != null) {
                 return CompletableFuture.completedFuture(encodeResult);
             }
+            // 设置消息编码后的 ByteBuffer
             msg.setEncodedBuff(putMessageThreadLocal.getEncoder().getEncoderBuffer());
+            // 创建写入消息上下文
             PutMessageContext putMessageContext = new PutMessageContext(topicQueueKey);
 
             //可能会有多个线程并发请求，虽然支持集群，但是对于每个单独的broker都是本地存储，所以内存锁就足够了
@@ -1046,7 +1084,7 @@ public class CommitLog implements Swappable {
 
                 //如果文件为空，或者已经存满，则创建一个新的commitlog文件
                 if (null == mappedFile || mappedFile.isFull()) {
-
+                    // 获取 MappedFile
                     mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
                     if (isCloseReadAhead()) {
                         setFileReadMode(mappedFile, LibC.MADV_RANDOM);
@@ -1058,6 +1096,7 @@ public class CommitLog implements Swappable {
                     return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPPED_FILE_FAILED, null));
                 }
 
+                // 向 MappedFile 追加消息
                 //映射文件中添加消息，这里的appendMessageCallback是消息拼接对象，拼接过程不分析
                 //调用底层的mappedFile进行出处，但是注意此时还没有刷盘
                 result = mappedFile.appendMessage(msg, this.appendMessageCallback, putMessageContext);
@@ -1125,7 +1164,7 @@ public class CommitLog implements Swappable {
             //解锁映射文件
             this.defaultMessageStore.unlockMappedFile(unlockMappedFile);
         }
-
+        // 消息写入结果
         PutMessageResult putMessageResult = new PutMessageResult(PutMessageStatus.PUT_OK, result);
 
         // Statistics 单次存储消息topic次数
@@ -1331,6 +1370,7 @@ public class CommitLog implements Swappable {
 
     private CompletableFuture<PutMessageResult> handleDiskFlushAndHA(PutMessageResult putMessageResult,
                                                                      MessageExt messageExt, int needAckNums, boolean needHandleHA) {
+        // 每次写完一条消息后，就会提交 flush 请求和 replica 请求
         CompletableFuture<PutMessageStatus> flushResultFuture = handleDiskFlush(putMessageResult.getAppendMessageResult(), messageExt);
         CompletableFuture<PutMessageStatus> replicaResultFuture;
         if (!needHandleHA) {
@@ -1339,6 +1379,7 @@ public class CommitLog implements Swappable {
             replicaResultFuture = handleHA(putMessageResult.getAppendMessageResult(), putMessageResult, needAckNums);
         }
 
+        // 等待 flush 和 replica 请求完成
         return flushResultFuture.thenCombine(replicaResultFuture, (flushStatus, replicaStatus) -> {
             if (flushStatus != PutMessageStatus.PUT_OK) {
                 putMessageResult.setPutMessageStatus(flushStatus);

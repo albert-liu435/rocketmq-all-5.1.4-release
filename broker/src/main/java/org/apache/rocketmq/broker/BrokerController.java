@@ -176,9 +176,11 @@ public class BrokerController {
     private final NettyServerConfig nettyServerConfig;
     private final NettyClientConfig nettyClientConfig;
     protected final MessageStoreConfig messageStoreConfig;
+    //消费偏移量
     protected final ConsumerOffsetManager consumerOffsetManager;
     protected final BroadcastOffsetManager broadcastOffsetManager;
     protected final ConsumerManager consumerManager;
+    //消费过滤器
     protected final ConsumerFilterManager consumerFilterManager;
     protected final ConsumerOrderInfoManager consumerOrderInfoManager;
     protected final PopInflightMessageCounter popInflightMessageCounter;
@@ -194,6 +196,8 @@ public class BrokerController {
     protected final PollingInfoProcessor pollingInfoProcessor;
     protected final QueryAssignmentProcessor queryAssignmentProcessor;
     protected final ClientManageProcessor clientManageProcessor;
+
+    // 创建发送消息处理器
     protected final SendMessageProcessor sendMessageProcessor;
     protected final ReplyMessageProcessor replyMessageProcessor;
     protected final PullRequestHoldService pullRequestHoldService;
@@ -228,7 +232,9 @@ public class BrokerController {
     protected RemotingServer remotingServer;
     protected CountDownLatch remotingServerStartLatch;
     protected RemotingServer fastRemotingServer;
+    //Topic配置
     protected TopicConfigManager topicConfigManager;
+    //订阅组配置
     protected SubscriptionGroupManager subscriptionGroupManager;
     protected TopicQueueMappingManager topicQueueMappingManager;
     protected ExecutorService sendMessageExecutor;
@@ -368,6 +374,9 @@ public class BrokerController {
         this.endTransactionProcessor = new EndTransactionProcessor(this);
 
         //各种线程池的阻塞队列
+
+
+        // 接收客户端消息的处理队列
         this.sendThreadPoolQueue = new LinkedBlockingQueue<>(this.brokerConfig.getSendThreadPoolQueueCapacity());
         this.putThreadPoolQueue = new LinkedBlockingQueue<>(this.brokerConfig.getPutThreadPoolQueueCapacity());
         this.pullThreadPoolQueue = new LinkedBlockingQueue<>(this.brokerConfig.getPullThreadPoolQueueCapacity());
@@ -466,6 +475,7 @@ public class BrokerController {
         //再开一个端口为10909 的服务端口，这个端口只给 消息的生产者使用
         fastConfig.setListenPort(listeningPort);
 
+        // Broker服务器，端口 10911
         this.fastRemotingServer = new NettyRemotingServer(fastConfig, this.clientHousekeepingService);
     }
 
@@ -476,7 +486,8 @@ public class BrokerController {
         this.scheduledExecutorService = ThreadUtils.newScheduledThreadPool(1,
                 new ThreadFactoryImpl("BrokerControllerScheduledThread", true, getBrokerIdentity()));
 
-        //处理消息生产者发送的生成消息api 相关的线程池
+
+        // 发送消息线程池
         this.sendMessageExecutor = ThreadUtils.newThreadPoolExecutor(
                 this.brokerConfig.getSendMessageThreadPoolNums(),
                 this.brokerConfig.getSendMessageThreadPoolNums(),
@@ -757,14 +768,18 @@ public class BrokerController {
     }
 
     public boolean initializeMetadata() {
+        // 从磁盘加载 Topic 元数据
         //加载 topic 相关配置，文件地址为 {user.home}/store/config/topics.json
         boolean result = this.topicConfigManager.load();
 
         result = result && this.topicQueueMappingManager.load();
+        // 从磁盘加载各个消费组对topic的消费偏移量的元数据
         //加载 不同的Consumer消费的进度情况  文件地址为 {user.home}/store/config/consumerOffset.json
         result = result && this.consumerOffsetManager.load();
+        // 从磁盘加载订阅消费组的元数据
         //加载 订阅关系  文件地址  {user.home}/store/config/subscriptionGroup.json
         result = result && this.subscriptionGroupManager.load();
+        // 从磁盘加载消费过滤器的元数据
         //加载 Consumer的过滤信息配置  文件地址  {user.home}/store/config/consumerFilter.json
         result = result && this.consumerFilterManager.load();
         result = result && this.consumerOrderInfoManager.load();
@@ -1698,9 +1713,14 @@ public class BrokerController {
 
         if (!isIsolated && !this.messageStoreConfig.isEnableDLegerCommitLog() && !this.messageStoreConfig.isDuplicationEnable()) {
             changeSpecialServiceStatus(this.brokerConfig.getBrokerId() == MixAll.MASTER_ID);
+            //注册broker到NameSer
             this.registerBrokerAll(true, false, true);
         }
 
+        /**
+         * 在 start() 启动方法中，有一个调度器每隔 30秒 调用一次 registerBrokerAll 方法来注册 Broker。调度的周期可以通过 registerNameServerPeriod 来配置，默认为 30秒，不过看代码可以知道调度周期在 10~60 秒。
+         *
+         */
         scheduledFutures.add(this.scheduledExecutorService.scheduleAtFixedRate(new AbstractBrokerRunnable(this.getBrokerIdentity()) {
             @Override
             public void run0() {
@@ -1829,11 +1849,37 @@ public class BrokerController {
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 
+    /**
+     * 如果参数指定了强制注册，或者判断需要注册才会去注册 Broker；needRegister 是将 Broker 的 TopicConfig 发送到 NameServer 判断数据版本（DataVersion）是否发生变更，只要其中一个 NameServer 的版本不一样，就需要注册。
+     * <p>
+     * <p>
+     * 真正的注册逻辑在 BrokerOuterAPI 的 registerBrokerAll
+     * <p>
+     * <p>
+     * 注册时会传入 Broker 的 Topic 配置数据
+     * <p>
+     * <p>
+     * 注册完成后，会更新本地的HA高可用地址，以及主从同步的Master地址
+     *
+     * @param checkOrderConfig
+     * @param oneway
+     * @param forceRegister
+     */
     public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway, boolean forceRegister) {
+
+        /**
+         * key:topic 名称
+         * value:topicConfig
+         */
         ConcurrentMap<String, TopicConfig> topicConfigMap = this.getTopicConfigManager().getTopicConfigTable();
+        /**
+         * key:topic 名称
+         * value:topicConfig
+         */
         ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<>();
 
         for (TopicConfig topicConfig : topicConfigMap.values()) {
+            //
             if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission())
                     || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
                 topicConfigTable.put(topicConfig.getTopicName(),
@@ -1843,9 +1889,12 @@ public class BrokerController {
                 topicConfigTable.put(topicConfig.getTopicName(), topicConfig);
             }
 
+            // 强制注册，或者查询 NameServer 对比 DataVersion 看版本是否不一致
             if (this.brokerConfig.isEnableSplitRegistration()
                     && topicConfigTable.size() >= this.brokerConfig.getSplitRegistrationSize()) {
+                // 封装数据 topicConfigTable、dataVersion
                 TopicConfigAndMappingSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildSerializeWrapper(topicConfigTable);
+                // 向所有 NameServer 注册
                 doRegisterBrokerAll(checkOrderConfig, oneway, topicConfigWrapper);
                 topicConfigTable.clear();
             }
@@ -1855,14 +1904,18 @@ public class BrokerController {
                 .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), TopicQueueMappingDetail.cloneAsMappingInfo(entry.getValue())))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+        // 封装数据 topicConfigTable、dataVersion
         TopicConfigAndMappingSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().
                 buildSerializeWrapper(topicConfigTable, topicQueueMappingInfoMap);
+
+        // 强制注册，或者查询 NameServer 对比 DataVersion 看版本是否不一致
         if (this.brokerConfig.isEnableSplitRegistration() || forceRegister || needRegister(this.brokerConfig.getBrokerClusterName(),
                 this.getBrokerAddr(),
                 this.brokerConfig.getBrokerName(),
                 this.brokerConfig.getBrokerId(),
                 this.brokerConfig.getRegisterBrokerTimeoutMills(),
                 this.brokerConfig.isInBrokerContainer())) {
+            // 向所有 NameServer 注册
             doRegisterBrokerAll(checkOrderConfig, oneway, topicConfigWrapper);
         }
     }
@@ -1874,6 +1927,8 @@ public class BrokerController {
             BrokerController.LOG.info("BrokerController#doResterBrokerAll: broker has shutdown, no need to register any more.");
             return;
         }
+
+        // 向所有 NameServer 注册
         List<RegisterBrokerResult> registerBrokerResultList = this.brokerOuterAPI.registerBrokerAll(
                 this.brokerConfig.getBrokerClusterName(),
                 this.getBrokerAddr(),
@@ -1951,6 +2006,7 @@ public class BrokerController {
                                               boolean checkOrderConfig) {
         for (RegisterBrokerResult registerBrokerResult : registerBrokerResultList) {
             if (registerBrokerResult != null) {
+                // 更新HA地址
                 if (this.updateMasterHAServerAddrPeriodically && registerBrokerResult.getHaServerAddr() != null) {
                     this.messageStore.updateHaMasterAddress(registerBrokerResult.getHaServerAddr());
                     this.messageStore.updateMasterAddress(registerBrokerResult.getMasterAddr());
@@ -1971,7 +2027,7 @@ public class BrokerController {
                                  final long brokerId,
                                  final int timeoutMills,
                                  final boolean isInBrokerContainer) {
-
+        // 封装数据 topicConfigTable、dataVersion
         TopicConfigSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildTopicConfigSerializeWrapper();
         List<Boolean> changeList = brokerOuterAPI.needRegister(clusterName, brokerAddr, brokerName, brokerId, topicConfigWrapper, timeoutMills, isInBrokerContainer);
         boolean needRegister = false;
@@ -1991,6 +2047,7 @@ public class BrokerController {
         this.minBrokerAddrInGroup = minBrokerAddr;
 
         this.changeSpecialServiceStatus(this.brokerConfig.getBrokerId() == minBrokerId);
+
         this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
 
         isIsolated = false;

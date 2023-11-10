@@ -92,11 +92,14 @@ import org.apache.rocketmq.remoting.proxy.SocksProxyConfig;
 public class NettyRemotingClient extends NettyRemotingAbstract implements RemotingClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggerName.ROCKETMQ_REMOTING_NAME);
 
+
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
     private static final long MIN_CLOSE_TIMEOUT_MILLIS = 100;
-
+    // Netty 客户端配置
     private final NettyClientConfig nettyClientConfig;
+    // Netty 网络客户端
     private final Bootstrap bootstrap = new Bootstrap();
+    // 事件轮询线程组
     private final EventLoopGroup eventLoopGroupWorker;
     private final Lock lockChannelTables = new ReentrantLock();
     private final Map<String /* cidr */, SocksProxyConfig /* proxy */> proxyMap = new HashMap<>();
@@ -105,7 +108,12 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
     private final HashedWheelTimer timer = new HashedWheelTimer(r -> new Thread(r, "ClientHouseKeepingService"));
 
+    //相当于配置文件中的namesrv
     private final AtomicReference<List<String>> namesrvAddrList = new AtomicReference<>();
+
+    /**
+     * 可用的NameSer地址 list
+     */
     private final ConcurrentMap<String, Boolean> availableNamesrvAddrMap = new ConcurrentHashMap<>();
     private final AtomicReference<String> namesrvAddrChoosed = new AtomicReference<>();
     private final AtomicInteger namesrvIndex = new AtomicInteger(initValueIndex());
@@ -118,13 +126,21 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
      * Invoke the callback methods in this executor when process response.
      */
     private ExecutorService callbackExecutor;
+    // 网络连接事件监听器
     private final ChannelEventListener channelEventListener;
+    // 处理器的线程组
     private EventExecutorGroup defaultEventExecutorGroup;
 
     public NettyRemotingClient(final NettyClientConfig nettyClientConfig) {
         this(nettyClientConfig, null);
     }
 
+    /**
+     * NettyRemotingClient 的构造初始化比较简单，主要是创建 Netty 的工作线程组 EventLoopGroup 以及处理器线程池，如果启用了 SSL/TLS，就加载 SSL 上下文
+     *
+     * @param nettyClientConfig
+     * @param channelEventListener
+     */
     public NettyRemotingClient(final NettyClientConfig nettyClientConfig,
                                final ChannelEventListener channelEventListener) {
         this(nettyClientConfig, channelEventListener, null, null);
@@ -153,10 +169,12 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         if (eventLoopGroup != null) {
             this.eventLoopGroupWorker = eventLoopGroup;
         } else {
+            // 创建线程组
             this.eventLoopGroupWorker = new NioEventLoopGroup(1, new ThreadFactoryImpl("NettyClientSelector_"));
         }
         this.defaultEventExecutorGroup = eventExecutorGroup;
 
+        // 加载SSL上下文
         if (nettyClientConfig.isUseTLS()) {
             try {
                 sslContext = TlsHelper.buildSslContext(true);
@@ -184,17 +202,38 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 启动netty客户端
+     * <p>
+     * 首先创建了处理器的线程组 DefaultEventExecutorGroup，可以看出它主要用于处理器的业务处理
+     * <p>
+     * <p>
+     * 接着创建 Netty 客户端 Bootstrap，并设置线程组 eventLoopGroupWorker，网络连接类型为 NioSocketChannel，服务器对应的是 ServerBootstrap 和 EpollServerSocketChannel / NioServerSocketChannel。
+     * <p>
+     * <p>
+     * 接着就是配置网络连接的管道，添加一系列的处理器。
+     * <p>
+     * <p>
+     * Bootstrap 构造完成后，启动了一个定时任务每隔3秒扫描一次响应表 responseTable，处理超时的请求。
+     * <p>
+     * <p>
+     * 最后是启动父类中的事件执行器 NettyEventExecutor，其主要就是处理一些网络连接事件的。
+     */
     @Override
     public void start() {
+        // 处理器线程组
         if (this.defaultEventExecutorGroup == null) {
             this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(
                     nettyClientConfig.getClientWorkerThreads(),
                     new ThreadFactoryImpl("NettyClientWorkerThread_"));
         }
+        // Netty 网络客户端
         Bootstrap handler = this.bootstrap.group(this.eventLoopGroupWorker).channel(NioSocketChannel.class)
+                // TCP 配置
                 .option(ChannelOption.TCP_NODELAY, true)
                 .option(ChannelOption.SO_KEEPALIVE, false)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, nettyClientConfig.getConnectTimeoutMillis())
+                // 配置 ChannelPipeline
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     public void initChannel(SocketChannel ch) throws Exception {
@@ -211,8 +250,11 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                                 nettyClientConfig.isDisableNettyWorkerGroup() ? null : defaultEventExecutorGroup,
                                 new NettyEncoder(),
                                 new NettyDecoder(),
+                                // 空闲状态处理器
                                 new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),
+                                // 连接管理器
                                 new NettyConnectManageHandler(),
+                                // Netty 客户端处理器
                                 new NettyClientHandler());
                     }
                 });
@@ -233,6 +275,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         if (nettyClientConfig.isClientPooledByteBufAllocatorEnable()) {
             handler.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
+
+        // 每3秒扫描一次 responseTable
 
         TimerTask timerTaskScanResponseTable = new TimerTask() {
             @Override

@@ -317,9 +317,17 @@ public class DefaultMessageStore implements MessageStore {
 //        lockFile = new RandomAccessFile(file, "rw");
 
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
+        // /store
         UtilAll.ensureDirOK(file.getParent());
+        // /store/commitlog
         UtilAll.ensureDirOK(getStorePathPhysic());
+        // /store/consumequeue
         UtilAll.ensureDirOK(getStorePathLogic());
+        // /store/lock
+
+        //最后可以看到一直创建了一个锁文件 lockFile，在 DefaultMessageStore 启动的时候，就会通过 lockFile 获取的 FileChannel 来锁定 /store/lock 文件。如果无法锁定，就直接抛出异常，
+        // 这说明 /store 下的目录只会被一个 Broker 独占，其它进程都不可以再占用 /store 目录下的文件。它会锁定直到 DefaultMessageStore 停止的时候才会释放。
+        //
         lockFile = new RandomAccessFile(file, "rw");
 
         parseDelayLevel();

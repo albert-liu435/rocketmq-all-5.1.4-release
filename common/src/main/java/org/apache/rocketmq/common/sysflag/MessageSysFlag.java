@@ -20,9 +20,14 @@ import org.apache.rocketmq.common.compression.CompressionType;
 
 public class MessageSysFlag {
 
+//    一个 int 占4个字节，也就是 32 个bit位，从 MessageSysFlag 的注释也可以了解到，定义的每个标识都对应到这个整数二进制的某个位置。再结合前面的代码可以看出，在设置标识时，
+//    就是通过对整数异或(|)的方式将标识设置到二进制位上，也就是对应位置设置为 1。
+//反之，对这个整数与(&)就可以读取出这个标识。
+
+
     /**
      * Meaning of each bit in the system flag
-     *
+     * <p>
      * | bit    | 7 | 6 | 5         | 4        | 3           | 2                | 1                | 0                |
      * |--------|---|---|-----------|----------|-------------|------------------|------------------|------------------|
      * | byte 1 |   |   | STOREHOST | BORNHOST | TRANSACTION | TRANSACTION      | MULTI_TAGS       | COMPRESSED       |

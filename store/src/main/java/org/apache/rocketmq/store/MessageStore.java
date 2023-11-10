@@ -50,10 +50,13 @@ import org.apache.rocketmq.store.util.PerfCounter;
 /**
  * 允许实现该接口来自定义消息的存储
  * This class defines contracting interfaces to implement, allowing third-party vendor to use customized message store.
+ * <p>
+ * Broker 端是通过 MessageStore 来存储、读取消息
  */
 public interface MessageStore {
 
     /**
+     * 加载已存储的数据
      * Load previously stored messages.
      *
      * @return true if success; false otherwise.
@@ -78,7 +81,7 @@ public interface MessageStore {
     void destroy();
 
     /**
-     * 异步方式保存消息
+     * 异步将消息写入存储
      * Store a message into store in async manner, the processor can process the next request rather than wait for
      * result when result is completed, notify the client in async manner
      *
@@ -90,6 +93,7 @@ public interface MessageStore {
     }
 
     /**
+     * 异步批量写入消息
      * Store a batch of messages in async manner
      *
      * @param messageExtBatch the message batch
@@ -100,6 +104,7 @@ public interface MessageStore {
     }
 
     /**
+     * 同步写入消息
      * 保存消息到commitlog
      * 核心逻辑分为了两大块：保存前的校验和调用CommitLog的putMessage()方法保存消息。
      * Store a message into store.
@@ -110,6 +115,7 @@ public interface MessageStore {
     PutMessageResult putMessage(final MessageExtBrokerInner msg);
 
     /**
+     * 同步批量写入消息
      * Store a batch of messages.
      *
      * @param messageExtBatch Message batch.
@@ -118,6 +124,7 @@ public interface MessageStore {
     PutMessageResult putMessages(final MessageExtBatch messageExtBatch);
 
     /**
+     * 查询消息
      * Query at most <code>maxMsgNums</code> messages belonging to <code>topic</code> at <code>queueId</code> starting
      * from given <code>offset</code>. Resulting messages will further be screened using provided message filter.
      *
@@ -180,6 +187,7 @@ public interface MessageStore {
                                                         final long offset, final int maxMsgNums, final int maxTotalMsgSize, final MessageFilter messageFilter);
 
     /**
+     * 获取消息队列最大偏移量
      * Get maximum offset of the topic queue.
      *
      * @param topic   Topic name.
@@ -243,6 +251,7 @@ public interface MessageStore {
     long getOffsetInQueueByTime(final String topic, final int queueId, final long timestamp, final BoundaryType boundaryType);
 
     /**
+     * 通过偏移量读取一条消息
      * Look up the message by given commit log offset.
      *
      * @param commitLogOffset physical offset.

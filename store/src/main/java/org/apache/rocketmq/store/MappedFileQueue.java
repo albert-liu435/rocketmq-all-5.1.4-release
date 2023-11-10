@@ -42,9 +42,8 @@ import org.apache.rocketmq.store.logfile.MappedFile;
 /**
  *  MappedFileQueue这个类的属性相对来说比较少，其中需要说的是，AllocateMappedFileService类型的字段，这个对象的作用是根据情况来决定是否需要提前创建好MappedFile对象供后续的直接使用。
  * 而这个参数是在构造MappedFileQueue对象的时候的一个参数。只有在CommitLog中构造时才会传入AllocateMappedFileService，在ConsumeQueue并没有传入。
- * ————————————————
- * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
- * 原文链接：https://blog.csdn.net/szhlcy/article/details/114541473
+ * <p>
+ * CommitLog 写入消息就是在将消息追加到 MappedFile 中，MappedFile 是 RocketMQ 对磁盘文件的一个抽象。而 MappedFileQueue 是一个目录的抽象对象，可以看出就是 MappedFile 的集合。
  */
 public class MappedFileQueue implements Swappable {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -55,6 +54,7 @@ public class MappedFileQueue implements Swappable {
     //映射文件大小，指的是单个文件的大小，比如CommitLog大小为1G
     protected final int mappedFileSize;
     //并发线程安全队列存储映射文件
+    //MappedFileQueue 用一个 CopyOnWriteArrayList 队列来存储目录下的文件映射对象 MappedFile。CopyOnWriteArrayList 就是采用COW的模式，即写时复制来保证集合的并发安全，对于读多写少的场景是很合适的
     protected final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<>();
 
     //AllocateMappedFileService类型的字段，这个对象的作用是根据情况来决定是否需要提前创建好MappedFile对象供后续的直接使用。而这个参数是在构造MappedFileQueue对象的时候的一个参数。
@@ -388,6 +388,7 @@ public class MappedFileQueue implements Swappable {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
+        // 创建新的 MappedFile
         if (createOffset != -1 && needCreate) {
             return tryCreateMappedFile(createOffset);
         }
@@ -422,7 +423,8 @@ public class MappedFileQueue implements Swappable {
     }
 
     /**
-     * 尝试创建MappedFile
+     * 创建 MappedFile 的时候，会根据起始偏移量计算文件名，文件名默认是20位长度，不足前面补0。从这可以看出，MappedFile 映射的文件名就是该文件中数据的起始偏移量。比如 commitlog 文件的大小默认是 1GB，
+     * 第一个 commitlog 文件的起始偏移量是 0，那么第一个 commitlog 的文件名就是 00000000000000000000，第二个 commitlog 文件的文件名就是 00000000001073741824。
      *
      * @param createOffset
      * @return

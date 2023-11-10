@@ -21,37 +21,47 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+
 import org.apache.rocketmq.common.TopicFilterType;
 import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 
 public class MessageExt extends Message {
     private static final long serialVersionUID = 5720810158625748049L;
 
+    // Broker组
     private String brokerName;
-
+    // Topic里的queue
     private int queueId;
-
+    // 消息存储大小
     private int storeSize;
-
+    // 消息队列偏移量
     private long queueOffset;
+    // 系统标识
     private int sysFlag;
+    // 消息诞生时间
     private long bornTimestamp;
+    // 消息诞生的客户端网络连接地址
     private SocketAddress bornHost;
-
+    // 消息存储时间
     private long storeTimestamp;
+    // 消息存储的机器地址
     private SocketAddress storeHost;
+    // 消息ID
     private String msgId;
+    // 消息在commitlog里的偏移量
     private long commitLogOffset;
+    // 消息体crc校验和
     private int bodyCRC;
+    // 重新消费的次数
     private int reconsumeTimes;
-
+    // 预准备事务偏移量
     private long preparedTransactionOffset;
 
     public MessageExt() {
     }
 
     public MessageExt(int queueId, long bornTimestamp, SocketAddress bornHost, long storeTimestamp,
-        SocketAddress storeHost, String msgId) {
+                      SocketAddress storeHost, String msgId) {
         this.queueId = queueId;
         this.bornTimestamp = bornTimestamp;
         this.bornHost = bornHost;
@@ -197,9 +207,13 @@ public class MessageExt extends Message {
         this.sysFlag = sysFlag;
     }
 
-    public void setStoreHostAddressV6Flag() { this.sysFlag = this.sysFlag | MessageSysFlag.STOREHOSTADDRESS_V6_FLAG; }
+    public void setStoreHostAddressV6Flag() {
+        this.sysFlag = this.sysFlag | MessageSysFlag.STOREHOSTADDRESS_V6_FLAG;
+    }
 
-    public void setBornHostV6Flag() { this.sysFlag = this.sysFlag | MessageSysFlag.BORNHOST_V6_FLAG; }
+    public void setBornHostV6Flag() {
+        this.sysFlag = this.sysFlag | MessageSysFlag.BORNHOST_V6_FLAG;
+    }
 
     public int getBodyCRC() {
         return bodyCRC;
@@ -250,7 +264,6 @@ public class MessageExt extends Message {
     }
 
     /**
-     *
      * achieves topicSysFlag value from transient properties
      *
      * @return
@@ -277,7 +290,6 @@ public class MessageExt extends Message {
     }
 
     /**
-     *
      * achieves groupSysFlag value from transient properties
      *
      * @return
@@ -291,7 +303,6 @@ public class MessageExt extends Message {
     }
 
     /**
-     *
      * set groupSysFlag to transient properties, or clear it
      *
      * @param groupSysFlag
@@ -307,10 +318,10 @@ public class MessageExt extends Message {
     @Override
     public String toString() {
         return "MessageExt [brokerName=" + brokerName + ", queueId=" + queueId + ", storeSize=" + storeSize + ", queueOffset=" + queueOffset
-            + ", sysFlag=" + sysFlag + ", bornTimestamp=" + bornTimestamp + ", bornHost=" + bornHost
-            + ", storeTimestamp=" + storeTimestamp + ", storeHost=" + storeHost + ", msgId=" + msgId
-            + ", commitLogOffset=" + commitLogOffset + ", bodyCRC=" + bodyCRC + ", reconsumeTimes="
-            + reconsumeTimes + ", preparedTransactionOffset=" + preparedTransactionOffset
-            + ", toString()=" + super.toString() + "]";
+                + ", sysFlag=" + sysFlag + ", bornTimestamp=" + bornTimestamp + ", bornHost=" + bornHost
+                + ", storeTimestamp=" + storeTimestamp + ", storeHost=" + storeHost + ", msgId=" + msgId
+                + ", commitLogOffset=" + commitLogOffset + ", bodyCRC=" + bodyCRC + ", reconsumeTimes="
+                + reconsumeTimes + ", preparedTransactionOffset=" + preparedTransactionOffset
+                + ", toString()=" + super.toString() + "]";
     }
 }

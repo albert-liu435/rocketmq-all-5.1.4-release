@@ -29,11 +29,14 @@ import java.util.Map;
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
 
-    //主题的名称，用于标识主题，主题名称集群内全局唯一
+    // 消息投递到哪个 topic
     private String topic;
     private int flag;
+    // 消息属性
     private Map<String, String> properties;
+    // 消息内容
     private byte[] body;
+    // 事务消息ID
     private String transactionId;
 
     public Message() {

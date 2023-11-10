@@ -25,9 +25,11 @@ import org.apache.rocketmq.common.TopicFilterType;
  */
 public class MessageExtBrokerInner extends MessageExt {
     private static final long serialVersionUID = 7256001576878700634L;
+    // 消息属性
     private String propertiesString;
+    // tags code
     private long tagsCode;
-
+    // 消息编码后的 buffer
     private ByteBuffer encodedBuff;
 
     private MessageVersion version = MessageVersion.MESSAGE_VERSION_V1;

@@ -71,6 +71,28 @@ public class AllocateMappedFileService extends ServiceThread {
      * 因此对于AllocateMappedFileService.putRequestAndReturnMappedFile，主要工作也是2步：
      * 1.将“创建mappedFile”的请求放入队列中
      * 2.等待异步线程实际创建完mappedFile
+     * <p>
+     * <p>
+     * 这个方法是支持创建两个连续的 MappedFile 的。
+     * <p>
+     * <p>
+     * 首先 canSubmitRequests=2 表明要提交两个创建 MappedFile 的请求。
+     * <p>
+     * <p>
+     * 如果开启了瞬时存储池化技术，可以提交的请求数还要根据池子中的Buffer数量变化。在当前Broker是Master节点的情况下，可以提交请求的数量 = 池子里可用的Buffer数量 - 请求队列 requestQueue 中的数量。
+     * 也就是总的 MappedFile 数量不会超过池子中 Buffer 的数量。
+     * <p>
+     * <p>
+     * 接着就根据分配的文件路径和文件大小创建一个分配请求 AllocateRequest，并放入请求表 requestTable 中。使用 putIfAbsent 就是保证同一路径不会重复分配创建。
+     * <p>
+     * <p>
+     * 接着可以看到，在开启瞬时存储池化技术时，如果存储池Buffer不够了，不能够提交一个分配请求了，就直接移除这个请求，返回 null。如果足够，就会将这个分配请求添加到 requestQueue 队列中；能分配的请求数量也会减一。
+     * <p>
+     * <p>
+     * 接着就是同样的方式创建下一个分配请求，这就是预分配机制，提前创建好 MappedFile。
+     * <p>
+     * <p>
+     * 分配请求提交到队列之后，之后就是从请求表 requestTable 中获取第一个文件的分配请求，开始等待它的分配。如果等待超时还没分配好（默认5秒），就返回 null；如果分配成功，就移除分配请求，并返回创建好的 MappedFile。
      *
      * @param nextFilePath
      * @param nextNextFilePath
@@ -80,13 +102,14 @@ public class AllocateMappedFileService extends ServiceThread {
     public MappedFile putRequestAndReturnMappedFile(String nextFilePath, String nextNextFilePath, int fileSize) {
 
         int canSubmitRequests = 2;
-
+        // 启用了瞬时存储池化技术（默认不开启）
         if (this.messageStore.isTransientStorePoolEnable()) {
             if (this.messageStore.getMessageStoreConfig().isFastFailIfNoBufferInStorePool()
                     && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole()) { //if broker is slave, don't fast fail even no buffer in pool
                 canSubmitRequests = this.messageStore.remainTransientStoreBufferNumbs() - this.requestQueue.size();
             }
         }
+        // 创建分配请求
         //创建mappedFile的请求，
         AllocateRequest nextReq = new AllocateRequest(nextFilePath, fileSize);
         //将其放入ConcurrentHashMap中，主要用于并发判断，保证不会创建重复的mappedFile
@@ -100,14 +123,14 @@ public class AllocateMappedFileService extends ServiceThread {
                 this.requestTable.remove(nextFilePath);
                 return null;
             }
-
+            // 可以提交请求，将请求放入队列
             boolean offerOK = this.requestQueue.offer(nextReq);
             if (!offerOK) {
                 log.warn("never expected here, add a request to preallocate queue failed");
             }
             canSubmitRequests--;
         }
-
+        // 下下个文件（预分配机制）
         AllocateRequest nextNextReq = new AllocateRequest(nextNextFilePath, fileSize);
         boolean nextNextPutOK = this.requestTable.putIfAbsent(nextNextFilePath, nextNextReq) == null;
         if (nextNextPutOK) {
@@ -127,7 +150,7 @@ public class AllocateMappedFileService extends ServiceThread {
             log.warn(this.getServiceName() + " service has exception. so return null");
             return null;
         }
-
+        // 从队列取出请求
         AllocateRequest result = this.requestTable.get(nextFilePath);
         try {
             if (result != null) {
@@ -200,6 +223,17 @@ public class AllocateMappedFileService extends ServiceThread {
      * 3.预热mappedFile
      * 4.唤醒putRequestAndReturnMappedFile方法中的等待线程
      * <p>
+     * <p>
+     * 首先从请求队列 requestQueue 中取出第一个分配请求 AllocateRequest，创建 MappedFile 对象；如果启用了瞬时存储池化技术，就会传入池子对象。
+     * <p>
+     * <p>
+     * 接下来会看是否启用预热机制，如果开启了预热机制，则会初始化 MappedFile 关联的 ByteBuffer 区域，对其进行一个预热的操作。这块我们后面再看。
+     * <p>
+     * <p>
+     * 最后就是将创建成功的 MappedFile 设置回 AllocateRequest 中；并在 finally 中通过其 CountDownLatch 的 countDown() 操作来通知 MappedFile 已经创建成功，这就和上面对应上了。
+     *
+     *
+     * <p>
      * Only interrupted by the external thread, will return false
      */
     private boolean mmapOperation() {
@@ -223,6 +257,7 @@ public class AllocateMappedFileService extends ServiceThread {
             if (req.getMappedFile() == null) {
                 long beginTime = System.currentTimeMillis();
 
+                // 创建 MappedFile
                 MappedFile mappedFile;
                 //如果启用了临时存储池
                 //判断是否采用堆外内存
@@ -252,6 +287,7 @@ public class AllocateMappedFileService extends ServiceThread {
                 if (mappedFile.getFileSize() >= this.messageStore.getMessageStoreConfig()
                         .getMappedFileSizeCommitLog()
                         &&
+                        // ByteBuffer 预热机制
                         this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
                     //这里会预热文件，这里涉及到了系统的底层调用
                     mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(),
@@ -289,10 +325,14 @@ public class AllocateMappedFileService extends ServiceThread {
      */
     static class AllocateRequest implements Comparable<AllocateRequest> {
         // Full file path
+        // MappedFile 映射的磁盘文件路径
         private String filePath;
+        // 磁盘文件大小
         private int fileSize;
         //为0表示MappedFile创建完成
+        //CountDownLatch 就是用来等待分配完成的并发工具。
         private CountDownLatch countDownLatch = new CountDownLatch(1);
+        // 分配的 MappedFile
         private volatile MappedFile mappedFile = null;
 
         public AllocateRequest(String filePath, int fileSize) {
@@ -331,6 +371,7 @@ public class AllocateMappedFileService extends ServiceThread {
         public void setMappedFile(MappedFile mappedFile) {
             this.mappedFile = mappedFile;
         }
+
         /**
          * fileSize大的优先级高，文件大小相同，文件的offset越小优先级越高
          */
