@@ -52,10 +52,10 @@ public class DefaultHAService implements HAService {
 
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
-    //连接到本机的数量
+    //连接到 master 的slave数量
     protected final AtomicInteger connectionCount = new AtomicInteger(0);
 
-    //连接到master的slave连接列表，用于管理连接
+    //主从建立的网络连接，一个 master 可能有多个 slave，每一个 HAConnection 就代表一个 slave 节点
     protected final List<HAConnection> connectionList = new LinkedList<>();
 
     //用于接收连接用的服务，只监听OP_ACCEPT事件，监听到连接事件时候，创建HAConnection来处理读写请求事件
@@ -63,15 +63,17 @@ public class DefaultHAService implements HAService {
 
     protected DefaultMessageStore defaultMessageStore;
 
-    //一个消费等待模型类，用于处理高可用线程和CommitLog的刷盘线程交互
+    //线程阻塞，等待通知组件
     protected WaitNotifyObject waitNotifyObject = new WaitNotifyObject();
+
     //master跟slave 消息同步的位移量
+    //推送到slave的最大偏移量
     protected AtomicLong push2SlaveMaxOffset = new AtomicLong(0);
 
-    //主从同步的检测服务，用于检查是否同步完成
+    //组传输的组件
     protected GroupTransferService groupTransferService;
 
-    //高可用的服务，slave用来跟master建立连接，像master汇报偏移量和拉取消息
+    //主从同步客户端组件
     protected HAClient haClient;
 
     protected HAConnectionStateNotificationService haConnectionStateNotificationService;
@@ -82,6 +84,7 @@ public class DefaultHAService implements HAService {
     @Override
     public void init(final DefaultMessageStore defaultMessageStore) throws IOException {
         this.defaultMessageStore = defaultMessageStore;
+        // HA 监听端口 10912
         this.acceptSocketService = new DefaultAcceptSocketService(defaultMessageStore.getMessageStoreConfig());
         this.groupTransferService = new GroupTransferService(this, defaultMessageStore);
         if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
@@ -151,6 +154,11 @@ public class DefaultHAService implements HAService {
         }
     }
 
+    /**
+     * 添加连接到列表中
+     *
+     * @param conn
+     */
     public void addConnection(final HAConnection conn) {
         synchronized (this.connectionList) {
             this.connectionList.add(conn);
@@ -275,6 +283,12 @@ public class DefaultHAService implements HAService {
         return info;
     }
 
+    /**
+     * AcceptSocketService 就是用来监听 slave 的连接，然后创建 HAConnection，默认监听的端口是 listenPort + 1。
+     * 在 beginAccept() 中就会基于 NIO 去建立监听通道，注册多路复用器 Selector，来监听 ACCEPT 连接请求。
+     * AcceptSocketService 也是一个 ServiceThread，在它的 run 方法中，就是在不断监听slave节点的连接请求，有TCP连接请求过来后，就用连接通道 SocketChannel 创建一个 HAConnection，并启动这个连接，
+     * 然后将其添加到 HAService 的连接集合 List<HAConnection> 中
+     */
     class DefaultAcceptSocketService extends AcceptSocketService {
 
         public DefaultAcceptSocketService(final MessageStoreConfig messageStoreConfig) {
@@ -296,6 +310,13 @@ public class DefaultHAService implements HAService {
     }
 
     /**
+     * AcceptSocketService 就是用来监听 slave 的连接，然后创建 HAConnection，默认监听的端口是 listenPort + 1。
+     * 在 beginAccept() 中就会基于 NIO 去建立监听通道，注册多路复用器 Selector，来监听 ACCEPT 连接请求。
+     * AcceptSocketService 也是一个 ServiceThread，在它的 run 方法中，就是在不断监听slave节点的连接请求，有TCP连接请求过来后，就用连接通道 SocketChannel 创建一个 HAConnection，并启动这个连接，
+     * 然后将其添加到 HAService 的连接集合 List<HAConnection> 中。
+     * <p>
+     * <p>
+     * 监听slave链接创建HAConnection
      * Listens to slave connections to create {@link HAConnection}.
      */
     protected abstract class AcceptSocketService extends ServiceThread {
@@ -307,6 +328,7 @@ public class DefaultHAService implements HAService {
 
         public AcceptSocketService(final MessageStoreConfig messageStoreConfig) {
             this.messageStoreConfig = messageStoreConfig;
+            // HA 监听端口 10912
             this.socketAddressListen = new InetSocketAddress(messageStoreConfig.getHaListenPort());
         }
 
@@ -314,9 +336,6 @@ public class DefaultHAService implements HAService {
          * 用于接受Slave连接的AcceptSocketService
          *  AcceptSocketService这个类在Broker的Master和Slaver两个角色启动时都会创建，只不过区别是Slaver开启端口之后，并不会有别的Broker与其建立连接。因为只有在Broker的角色是Slave的时候才会指定要连接的Master地址。
          * 这个逻辑，在Broker启动的时候BrokerController类中运行的。
-         * ————————————————
-         * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
-         * 原文链接：https://blog.csdn.net/szhlcy/article/details/116055627
          * <p>
          * Starts listening to slave connections.
          *
@@ -326,12 +345,16 @@ public class DefaultHAService implements HAService {
             // beginAccept方法就是开启Socket，绑定10912端口，然后注册selector和指定监听的事件为OP_ACCEPT也就是建立连接事件。对应的IO模式为NIO模式。主要看其run方法，这个方法是Master用来接受Slave连接的核心。
 
             //创建ServerSocketChannel
+            // 基于 NIO 建立连接监听
             this.serverSocketChannel = ServerSocketChannel.open();
             //创建selector
+            // 打开一个多路复用器
             this.selector = NetworkUtil.openSelector();
             //设置SO_REUSEADDR   https://blog.csdn.net/u010144805/article/details/78579528
+            // 设置socket重用地址true
             this.serverSocketChannel.socket().setReuseAddress(true);
             //设置绑定的地址
+            // 绑定监听端口
             this.serverSocketChannel.socket().bind(this.socketAddressListen);
             //设置为非阻塞模式
             if (0 == messageStoreConfig.getHaListenPort()) {
@@ -339,7 +362,7 @@ public class DefaultHAService implements HAService {
                 log.info("OS picked up {} to listen for HA", messageStoreConfig.getHaListenPort());
             }
             this.serverSocketChannel.configureBlocking(false);
-            //注册监听事件为 连接事件
+            // 注册到多路复用器，监听连接请求
             this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
         }
 
@@ -372,16 +395,17 @@ public class DefaultHAService implements HAService {
 
             while (!this.isStopped()) {
                 try {
-                    //设置阻塞等待时间
+                    // 监听连接到达事件
                     this.selector.select(1000);
                     //获取selector 下的所有selectorKey ，后续迭代用
+                    // 连接来了，拿到 SelectionKey
                     Set<SelectionKey> selected = this.selector.selectedKeys();
 
                     if (selected != null) {
                         for (SelectionKey k : selected) {
                             //检测有连接事件的selectorKey
                             if (k.isAcceptable()) {
-                                //获取selectorKey的Channel
+                                // 通过 accept 函数完成TCP连接，获取到一个网络连接通道 SocketChannel
                                 SocketChannel sc = ((ServerSocketChannel) k.channel()).accept();
 
                                 if (sc != null) {

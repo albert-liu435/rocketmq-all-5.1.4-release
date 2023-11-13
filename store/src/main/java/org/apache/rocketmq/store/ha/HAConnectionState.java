@@ -17,6 +17,9 @@
 
 package org.apache.rocketmq.store.ha;
 
+/**
+ * 连接状态
+ */
 public enum HAConnectionState {
     /**
      * Ready to start connection.

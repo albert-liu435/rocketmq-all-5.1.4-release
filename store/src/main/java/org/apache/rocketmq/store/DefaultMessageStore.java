@@ -1264,6 +1264,13 @@ public class DefaultMessageStore implements MessageStore {
         return -1;
     }
 
+    /**
+     * WriteSocketService 会根据 nextTransferFromWhere 找 CommitLog 获取要同步的数据，可以看到它首先会根据这个偏移量找到所在的 MappedFile，然后计算出在 nextTransferFromWhere
+     * 在 MappedFile 中的相对位置，然后根据这个相对偏移量去 MappedFile 读取数据。
+     *
+     * @param offset starting offset.
+     * @return
+     */
     @Override
     public SelectMappedBufferResult getCommitLogData(final long offset) {
         if (this.shutdown) {

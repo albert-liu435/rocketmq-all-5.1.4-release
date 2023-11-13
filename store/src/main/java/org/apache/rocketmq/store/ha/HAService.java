@@ -28,7 +28,8 @@ import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.config.MessageStoreConfig;
 
 /**
- * 高可用接口
+ * 高可用接口,即主从复制接口
+ * 功能就是将 master 数据复制到 slave 节点
  */
 public interface HAService {
 
@@ -41,6 +42,7 @@ public interface HAService {
     void init(DefaultMessageStore defaultMessageStore) throws IOException;
 
     /**
+     * 开启HA服务
      * Start HA Service
      *
      * @throws Exception

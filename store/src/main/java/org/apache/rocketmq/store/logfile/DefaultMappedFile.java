@@ -695,7 +695,9 @@ public class DefaultMappedFile extends AbstractMappedFile {
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
                 //获取指定位置到最新提交的位置之间的数据
+                // 得到要读取数据的大小
                 int size = readPosition - pos;
+                // 剩余的 ByteBuffer
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);

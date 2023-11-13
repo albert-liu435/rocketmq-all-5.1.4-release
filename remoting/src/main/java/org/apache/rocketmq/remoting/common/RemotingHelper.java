@@ -291,6 +291,12 @@ public class RemotingHelper {
         return (ipAddr & mask) == (cidrIpAddr & mask);
     }
 
+    /**
+     * 进行远程连接
+     *
+     * @param remote
+     * @return
+     */
     public static SocketChannel connect(SocketAddress remote) {
         return connect(remote, 1000 * 5);
     }

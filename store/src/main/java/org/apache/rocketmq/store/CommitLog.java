@@ -304,6 +304,14 @@ public class CommitLog implements Swappable {
         return this.getData(offset, offset == 0);
     }
 
+    /**
+     * 接着看 MappedFile 里是如何根据偏移量读取数据的，它首先要判断读到什么位置（readPosition），这个值在 writeBuffer 存在的时候就是 committedPosition 的位置，这个位置之前的数据是已经commit到MappedByteBuffer了的；
+     * 否则就是 wrotePosition 的位置，就是 MappedByteBuffer 当前写入的位置。然后根据 readPosition 和传入的要读的开始位置（pos），就能计算出要读取的数据大小（size）。
+     *
+     * @param offset
+     * @param returnFirstOnNotFound
+     * @return
+     */
     public SelectMappedBufferResult getData(final long offset, final boolean returnFirstOnNotFound) {
         //获取配置的CommitLog 的文件大小
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
@@ -312,6 +320,8 @@ public class CommitLog implements Swappable {
         if (mappedFile != null) {
             //位置=偏移量%文件大小
             int pos = (int) (offset % mappedFileSize);
+            //然后从 MappedByteBuffer 创建当前数据的视图 byteBuffer，将当前position定位到要读的位置（pos），然后再得到一个新的视图 byteBufferNew，再限制它要读的数据大小（limit），
+            // 这样byteBufferNew就是从 pos 到 readPosition 之间的数据了。
             SelectMappedBufferResult result = mappedFile.selectMappedBuffer(pos);
             return result;
         }
