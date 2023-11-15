@@ -26,6 +26,9 @@ import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.rpc.TopicQueueRequestHeader;
 
+/**
+ * 获取最大消息偏移量
+ */
 public class GetMaxOffsetRequestHeader extends TopicQueueRequestHeader {
     @CFNotNull
     private String topic;
@@ -76,9 +79,9 @@ public class GetMaxOffsetRequestHeader extends TopicQueueRequestHeader {
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-            .add("topic", topic)
-            .add("queueId", queueId)
-            .add("committed", committed)
-            .toString();
+                .add("topic", topic)
+                .add("queueId", queueId)
+                .add("committed", committed)
+                .toString();
     }
 }

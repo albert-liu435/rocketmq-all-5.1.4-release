@@ -86,14 +86,18 @@ public class RouteInfoManager {
     // Topic 的数据结构，Topic 属于逻辑概念，每个 Topic 会分散到多个 Broker 组上.主题与队列关系，记录一个主题的队列分布在哪些Broker上，每个Broker上存在该主题的队列个数
     //topic消息队列的路由信息，消息发送时根据路由表进行负载均衡
     private final Map<String/* topic */, Map<String, QueueData>> topicQueueTable;
-    // Broker 的数据结构，一个 brokerName 包含一组 broker 的数据
-    //key 是 Broker 组名称，就是配置文件中的 brokerName=RaftNode00，一个组可以由一个 Master + 多个 Slave 组成高可用，一个 Broker 集群可以有多个 Broker 组。
-    private final Map<String/* brokerName */, BrokerData> brokerAddrTable;
+
+
     //clusterAddrTable，broker 集群信息，每个集群包含哪些 Broker。
     // Broker 集群包含的 Broker 组，可能会有多个集群多个组，一般来说部署一个集群即可
     private final Map<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+
+    //key 是 Broker 组名称，就是配置文件中的 brokerName=RaftNode00，一个组可以由一个 Master + 多个 Slave 组成高可用，一个 Broker 集群可以有多个 Broker 组。
+    private final Map<String/* brokerName */, BrokerData> brokerAddrTable;
+
     // 管理与 Broker 之间的长连接，心跳检测、连接保活
-    //brokerLiveTable，当前存活的 Broker,该信息不是实时的，NameServer 每10S扫描一次所有的 broker,根据心跳包的时间得知 broker的状态，该机制也是导致当一个 Broker 进程假死后，消息生产者无法立即感知，可能继续向其发送消息，导致失败（非高可用），如何保证消息发送高可用
+    //brokerLiveTable，当前存活的 Broker,该信息不是实时的，NameServer 每10S扫描一次所有的 broker,根据心跳包的时间得知 broker的状态，
+    // 该机制也是导致当一个 Broker 进程假死后，消息生产者无法立即感知，可能继续向其发送消息，导致失败（非高可用），如何保证消息发送高可用
     private final Map<BrokerAddrInfo/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
     //Broker上的FilterServer列表，用于类模式消息过滤，类模式消息过滤。
     // Broker 关联的 FilterServer，Broker 可以绑定一个 FilterServer 用于消息筛选

@@ -174,6 +174,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (defaultMQProducer.getBackPressureForAsyncSendNum() > 10) {
             semaphoreAsyncSendNum = new Semaphore(Math.max(defaultMQProducer.getBackPressureForAsyncSendNum(), 10), true);
         } else {
+            //否则最大消息量为10
             semaphoreAsyncSendNum = new Semaphore(10, true);
             log.info("semaphoreAsyncSendNum can not be smaller than 10.");
         }
@@ -185,14 +186,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             log.info("semaphoreAsyncSendSize can not be smaller than 1M.");
         }
 
+        //探测远程服务是否可用
         ServiceDetector serviceDetector = new ServiceDetector() {
             @Override
             public boolean detect(String endpoint, long timeoutMillis) {
+
                 Optional<String> candidateTopic = pickTopic();
                 if (!candidateTopic.isPresent()) {
                     return false;
                 }
                 try {
+                    //消息队列
                     MessageQueue mq = new MessageQueue(candidateTopic.get(), null, 0);
                     mQClientFactory.getMQClientAPIImpl()
                             .getMaxOffset(endpoint, mq, timeoutMillis);

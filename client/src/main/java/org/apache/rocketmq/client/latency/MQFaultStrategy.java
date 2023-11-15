@@ -22,6 +22,9 @@ import org.apache.rocketmq.client.impl.producer.TopicPublishInfo;
 import org.apache.rocketmq.client.impl.producer.TopicPublishInfo.QueueFilter;
 import org.apache.rocketmq.common.message.MessageQueue;
 
+/**
+ * MQ差错控制策略
+ */
 public class MQFaultStrategy {
     private LatencyFaultTolerance<String> latencyFaultTolerance;
     private volatile boolean sendLatencyFaultEnable;
@@ -36,7 +39,8 @@ public class MQFaultStrategy {
             this.lastBrokerName = lastBrokerName;
         }
 
-        @Override public boolean filter(MessageQueue mq) {
+        @Override
+        public boolean filter(MessageQueue mq) {
             if (lastBrokerName != null) {
                 return !mq.getBrokerName().equals(lastBrokerName);
             }
@@ -45,19 +49,22 @@ public class MQFaultStrategy {
     }
 
     private ThreadLocal<BrokerFilter> threadBrokerFilter = new ThreadLocal<BrokerFilter>() {
-        @Override protected BrokerFilter initialValue() {
+        @Override
+        protected BrokerFilter initialValue() {
             return new BrokerFilter();
         }
     };
 
     private QueueFilter reachableFilter = new QueueFilter() {
-        @Override public boolean filter(MessageQueue mq) {
+        @Override
+        public boolean filter(MessageQueue mq) {
             return latencyFaultTolerance.isReachable(mq.getBrokerName());
         }
     };
 
     private QueueFilter availableFilter = new QueueFilter() {
-        @Override public boolean filter(MessageQueue mq) {
+        @Override
+        public boolean filter(MessageQueue mq) {
             return latencyFaultTolerance.isAvailable(mq.getBrokerName());
         }
     };

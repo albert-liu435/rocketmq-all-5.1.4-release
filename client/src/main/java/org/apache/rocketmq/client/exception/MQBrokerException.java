@@ -21,6 +21,7 @@ import org.apache.rocketmq.common.help.FAQUrl;
 
 public class MQBrokerException extends Exception {
     private static final long serialVersionUID = 5975020272601250368L;
+    //响应code
     private final int responseCode;
     private final String errorMessage;
     private final String brokerAddr;
@@ -41,7 +42,7 @@ public class MQBrokerException extends Exception {
 
     public MQBrokerException(int responseCode, String errorMessage, String brokerAddr) {
         super(FAQUrl.attachDefaultURL("CODE: " + UtilAll.responseCode2String(responseCode) + "  DESC: "
-            + errorMessage + (brokerAddr != null ? " BROKER: " + brokerAddr : "")));
+                + errorMessage + (brokerAddr != null ? " BROKER: " + brokerAddr : "")));
         this.responseCode = responseCode;
         this.errorMessage = errorMessage;
         this.brokerAddr = brokerAddr;

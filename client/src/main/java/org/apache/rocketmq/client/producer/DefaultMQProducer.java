@@ -76,6 +76,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
     private final Logger logger = LoggerFactory.getLogger(DefaultMQProducer.class);
+    //
     private final Set<Integer> retryResponseCodes = new CopyOnWriteArraySet<>(Arrays.asList(
             ResponseCode.TOPIC_NOT_EXIST,
             ResponseCode.SERVICE_NOT_AVAILABLE,
@@ -165,6 +166,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     private boolean autoBatch = false;
     /**
+     * 自动批处理消息的实例
      * Instance for batching message automatically
      */
     private ProduceAccumulator produceAccumulator = null;
@@ -175,12 +177,14 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     private boolean enableBackpressureForAsyncMode = false;
 
     /**
+     * 异步模式，正在发送的最大的消息数量为10000
      * on BackpressureForAsyncMode, limit maximum number of on-going sending async messages
      * default is 10000
      */
     private int backPressureForAsyncSendNum = 10000;
 
     /**
+     * 最大消息大小为100M
      * on BackpressureForAsyncMode, limit maximum message size of on-going sending async messages
      * default is 100M
      */
@@ -205,6 +209,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
+     * 生产者组
      * Constructor specifying producer group.
      *
      * @param producerGroup Producer group, see the name-sake field.
@@ -715,7 +720,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     /**
      * 发送消息到mq
      *
-     * @param msg 消息
+     * @param msg          消息
      * @param mq
      * @param sendCallback
      * @return

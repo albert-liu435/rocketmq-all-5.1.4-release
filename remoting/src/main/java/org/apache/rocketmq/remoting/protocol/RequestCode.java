@@ -41,6 +41,7 @@ public class RequestCode {
 
     public static final int GET_BROKER_RUNTIME_INFO = 28;
     public static final int SEARCH_OFFSET_BY_TIMESTAMP = 29;
+    //获取最大偏移量
     public static final int GET_MAX_OFFSET = 30;
     public static final int GET_MIN_OFFSET = 31;
 

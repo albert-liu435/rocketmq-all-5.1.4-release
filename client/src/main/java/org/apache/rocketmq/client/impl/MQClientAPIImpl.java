@@ -1375,6 +1375,17 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
         throw new MQBrokerException(response.getCode(), response.getRemark(), addr);
     }
 
+    /**
+     * 获取最大偏移量
+     *
+     * @param addr          broker地址
+     * @param messageQueue  消息队列
+     * @param timeoutMillis 超时时间
+     * @return
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
+     */
     public long getMaxOffset(final String addr, final MessageQueue messageQueue, final long timeoutMillis)
             throws RemotingException, MQBrokerException, InterruptedException {
         GetMaxOffsetRequestHeader requestHeader = new GetMaxOffsetRequestHeader();
@@ -1383,10 +1394,12 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
         requestHeader.setBname(messageQueue.getBrokerName());
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_MAX_OFFSET, requestHeader);
 
+        //进行RPC远程调用
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
                 request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {
+            //响应成功
             case ResponseCode.SUCCESS: {
                 GetMaxOffsetResponseHeader responseHeader =
                         (GetMaxOffsetResponseHeader) response.decodeCommandCustomHeader(GetMaxOffsetResponseHeader.class);

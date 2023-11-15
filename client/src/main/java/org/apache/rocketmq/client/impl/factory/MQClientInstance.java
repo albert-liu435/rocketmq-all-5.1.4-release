@@ -1087,6 +1087,7 @@ public class MQClientInstance {
         }
         HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
+            //获取master broker地址
             return map.get(MixAll.MASTER_ID);
         }
 
