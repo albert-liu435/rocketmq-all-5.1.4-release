@@ -38,26 +38,41 @@ public class DispatchRequest {
     private int bufferSize = -1;//the buffer size maybe larger than the msg size if the message is wrapped by something
 
     // for batch consume queue
-    private long  msgBaseOffset = -1;
+    private long msgBaseOffset = -1;
     private short batchSize = 1;
 
     private long nextReputFromOffset = -1;
 
     private String offsetId;
 
+    /**
+     *
+     * @param topic 主题
+     * @param queueId 队列ID
+     * @param commitLogOffset
+     * @param msgSize
+     * @param tagsCode
+     * @param storeTimestamp
+     * @param consumeQueueOffset
+     * @param keys
+     * @param uniqKey
+     * @param sysFlag
+     * @param preparedTransactionOffset
+     * @param propertiesMap
+     */
     public DispatchRequest(
-        final String topic,
-        final int queueId,
-        final long commitLogOffset,
-        final int msgSize,
-        final long tagsCode,
-        final long storeTimestamp,
-        final long consumeQueueOffset,
-        final String keys,
-        final String uniqKey,
-        final int sysFlag,
-        final long preparedTransactionOffset,
-        final Map<String, String> propertiesMap
+            final String topic,
+            final int queueId,
+            final long commitLogOffset,
+            final int msgSize,
+            final long tagsCode,
+            final long storeTimestamp,
+            final long consumeQueueOffset,
+            final String keys,
+            final String uniqKey,
+            final int sysFlag,
+            final long preparedTransactionOffset,
+            final Map<String, String> propertiesMap
     ) {
         this.topic = topic;
         this.queueId = queueId;
@@ -239,6 +254,6 @@ public class DispatchRequest {
                 ", msgBaseOffset=" + msgBaseOffset +
                 ", batchSize=" + batchSize +
                 ", nextReputFromOffset=" + nextReputFromOffset +
-            '}';
+                '}';
     }
 }

@@ -264,6 +264,7 @@ public class CommitLog implements Swappable {
     }
 
     public long getMaxOffset() {
+        //返回最大偏移量
         return this.mappedFileQueue.getMaxOffset();
     }
 
@@ -674,10 +675,13 @@ public class CommitLog implements Swappable {
         }
     }
 
+    //获取并计算最新的确认偏移量
     // Fetch and compute the newest confirmOffset.
     // Even if it is just inited.
     public long getConfirmOffset() {
+
         if (this.defaultMessageStore.getBrokerConfig().isEnableControllerMode()) {
+
             if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE && !this.defaultMessageStore.getRunningFlags().isFenced()) {
                 if (((AutoSwitchHAService) this.defaultMessageStore.getHaService()).getLocalSyncStateSet().size() == 1) {
                     return this.defaultMessageStore.getMaxPhyOffset();

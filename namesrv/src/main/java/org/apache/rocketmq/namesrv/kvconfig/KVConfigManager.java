@@ -30,6 +30,8 @@ import org.apache.rocketmq.namesrv.NamesrvController;
 import org.apache.rocketmq.remoting.protocol.body.KVTable;
 
 /**
+ * 感觉这个类没有什么用处
+ *
  * 读取或变更NameServer的配置属性，加载 NamesrvConfig 中配置的配置文件到内存，此类一个亮点就是使用轻量级的非线程安全容器，再结合读写锁对资源读写进行保护。尽最大程度提高线程的并发度
  * KV 配置管理器
  * <p>

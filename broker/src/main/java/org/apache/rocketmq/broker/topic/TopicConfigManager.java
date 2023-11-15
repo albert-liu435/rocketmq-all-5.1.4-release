@@ -55,16 +55,27 @@ import org.apache.rocketmq.remoting.protocol.statictopic.TopicQueueMappingInfo;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Topic配置
+ * TopicConfigManager 是 BrokerController 中的管理组件，TopicConfigManager 创建时会初始化创建一些系统内置的topic，默认会创建如下一些内置的topic。
+ * <p>
+ * SELF_TEST_TOPIC：自我测试的Topic
+ * TBW102：自动创建Topic相关
+ * BenchmarkTest：进行压力测试相关的Topic
+ * DefaultCluster：以Broker集群名称创建的topic，用于写入和消费Broker集群自身的一些元数据的topic
+ * broker：以 Broker 组名称创建的 topic，对Broker组读写相关的Topic
+ * OFFSET_MOVED_EVENT：偏移量移动事件topic
+ * SCHEDULE_TOPIC_XXXX：调度相关topic
+ * RMQ_SYS_TRACE_TOPIC：系统追踪相关topic
+ * ClusterName_REPLY_TOPIC：集群重试相关
  */
 public class TopicConfigManager extends ConfigManager {
     protected static final Logger log = LoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
     private static final int SCHEDULE_TOPIC_QUEUE_NUM = 18;
 
+    // topic 配置表读写锁
     private transient final Lock topicConfigTableLock = new ReentrantLock();
 
-    // Topic 配置内存表
+    // Topic 配置内存表。topicConfigTable 表来存储 topic 元数据，它的 key 就是对应的 topic 名称，值就是 TopicConfig。
     protected ConcurrentMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<>(1024);
     // 数据版本号
     private DataVersion dataVersion = new DataVersion();
@@ -96,13 +107,16 @@ public class TopicConfigManager extends ConfigManager {
         }
         {
             if (this.brokerController.getBrokerConfig().isAutoCreateTopicEnable()) {
+                // 创建内置Topic: TBW102，自动创建Topic相关
                 String topic = TopicValidator.AUTO_CREATE_TOPIC_KEY_TOPIC;
                 TopicConfig topicConfig = new TopicConfig(topic);
                 TopicValidator.addSystemTopic(topic);
+                // 读写队列数，默认 8
                 topicConfig.setReadQueueNums(this.brokerController.getBrokerConfig()
                         .getDefaultTopicQueueNums());
                 topicConfig.setWriteQueueNums(this.brokerController.getBrokerConfig()
                         .getDefaultTopicQueueNums());
+                // 三种权限都有
                 int perm = PermName.PERM_INHERIT | PermName.PERM_READ | PermName.PERM_WRITE;
                 topicConfig.setPerm(perm);
                 putTopicConfig(topicConfig);
@@ -231,20 +245,32 @@ public class TopicConfigManager extends ConfigManager {
         return getTopicConfig(topic);
     }
 
+    /**
+     * @return
+     * @topic：要创建的topic
+     * @defaultTopic：默认topic，根据这个默认topic,新建topic，客户端发送过来的默认topic为TBW102。
+     * @remoteAddress：客户端机器地址
+     * @clientDefaultTopicQueueNums：默认的队列数，生产者发送过来的默认队列数为4。
+     * @topicSysFlag：是否为系统主题，默认false
+     */
     public TopicConfig createTopicInSendMessageMethod(final String topic, final String defaultTopic,
                                                       final String remoteAddress, final int clientDefaultTopicQueueNums, final int topicSysFlag) {
         TopicConfig topicConfig = null;
         boolean createNew = false;
 
         try {
+            //进行上锁
             if (this.topicConfigTableLock.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
+                    //获取topicConfig信息
                     topicConfig = getTopicConfig(topic);
                     if (topicConfig != null) {
                         return topicConfig;
                     }
 
+                    // 获取默认 Topic
                     TopicConfig defaultTopicConfig = getTopicConfig(defaultTopic);
+                    //
                     if (defaultTopicConfig != null) {
                         if (defaultTopic.equals(TopicValidator.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
                             if (!this.brokerController.getBrokerConfig().isAutoCreateTopicEnable()) {
@@ -288,6 +314,7 @@ public class TopicConfigManager extends ConfigManager {
 
                         createNew = true;
 
+                        //进行持久化
                         this.persist();
                     }
                 } finally {

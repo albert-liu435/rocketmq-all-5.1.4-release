@@ -248,7 +248,7 @@ public class IndexService {
 
     /**
      * 创建消息索引和保存的buildIndex
-     *  buildIndex方法的逻辑比较简单。就是根据请求的中的消息的key和topic来构建存储的key结构。然后调用IndexFile类中的方法。其中对于事务消息的回滚类型的消息不进行记录。
+     * buildIndex方法的逻辑比较简单。就是根据请求的中的消息的key和topic来构建存储的key结构。然后调用IndexFile类中的方法。其中对于事务消息的回滚类型的消息不进行记录。
      *
      * @param req
      */

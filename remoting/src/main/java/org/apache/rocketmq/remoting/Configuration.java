@@ -31,6 +31,9 @@ import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.remoting.protocol.DataVersion;
 
+/**
+ * 配置信息
+ */
 public class Configuration {
 
     private final Logger log;
@@ -121,6 +124,7 @@ public class Configuration {
     }
 
     /**
+     * 获取存储路径
      * The store path will be gotten from the field of object.
      *
      * @throws java.lang.RuntimeException if the field of object is not exist.

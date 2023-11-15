@@ -103,7 +103,9 @@ public class ConsumeQueueStore {
     }
 
     public void putMessagePositionInfoWrapper(DispatchRequest dispatchRequest) {
+        // 根据topic和queueId查找消费队列，没有则新建
         ConsumeQueueInterface cq = this.findOrCreateConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
+        // 向消费队列写入消息
         this.putMessagePositionInfoWrapper(cq, dispatchRequest);
     }
 
@@ -397,6 +399,7 @@ public class ConsumeQueueStore {
                     this.messageStoreConfig.getMapperFileSizeBatchConsumeQueue(),
                     this.messageStore);
         } else {
+            // 创建消费队列
             newLogic = new ConsumeQueue(
                     topic,
                     queueId,

@@ -15,9 +15,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# 判断是否为空字符串
 if [ -z "$ROCKETMQ_HOME" ] ; then
   ## resolve links - $0 may be a link to maven's home
+  #第一个参数，如 sh mqnamesrv ,则$0为mqnamesrv,即shell脚本名称
   PRG="$0"
+  #https://blog.csdn.net/daobuxinzi/article/details/122834274
+  #-h FILE
+     #FILE exists and is a symbolic link (same as -L)
+     #
+     #-h 用来判断$PRG文件是否存在并且是一个符号链接(软链接)
+     #所以你这段脚本就是当$PRG存在并且是符号链接时执行do~done之间的脚本
+     #
+     #应用场景，在启动脚本中：
+     #
+     #-h "$PRG"判断是否为软连接 而"$PRG"是$0，就是启动脚本文件名
+     #这是tomcat的startup.sh启动脚本中开始，判断startup.sh脚本的位置，如果startup.sh是通过软件启动就要找到实际的位置，这样才能设置好catalina.home等变量，tomcat才能顺利启动
 
   # need this for relative symlinks
   while [ -h "$PRG" ] ; do
@@ -29,9 +42,9 @@ if [ -z "$ROCKETMQ_HOME" ] ; then
       PRG="`dirname "$PRG"`/$link"
     fi
   done
-
+  #当前运行脚本的目录
   saveddir=`pwd`
-
+  #home目录
   ROCKETMQ_HOME=`dirname "$PRG"`/..
 
   # make it fully qualified
@@ -39,7 +52,12 @@ if [ -z "$ROCKETMQ_HOME" ] ; then
 
   cd "$saveddir"
 fi
-
+#定义环境变量
 export ROCKETMQ_HOME
-
+# 关键： 执行runserver.sh脚本，携带logback的日志xml配置，以及传递JVM的启动main方法的入口类绝对路径
+#注意最后的两个字符$@，这两个字符的作用如下：
+ #
+ #$@ ：表示所有脚本参数的内容。
+ #
+ #$# ：表示返回所有脚本参数的个数。
 sh ${ROCKETMQ_HOME}/bin/runserver.sh -Drmq.logback.configurationFile=$ROCKETMQ_HOME/conf/rmq.namesrv.logback.xml org.apache.rocketmq.namesrv.NamesrvStartup $@

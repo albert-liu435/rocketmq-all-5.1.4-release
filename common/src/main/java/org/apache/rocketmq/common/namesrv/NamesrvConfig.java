@@ -83,6 +83,7 @@ public class NamesrvConfig {
     private volatile boolean notifyMinBrokerIdChanged = false;
 
     /**
+     * namesrv是否启动
      * Is startup the controller in this name-srv
      */
     private boolean enableControllerInNamesrv = false;

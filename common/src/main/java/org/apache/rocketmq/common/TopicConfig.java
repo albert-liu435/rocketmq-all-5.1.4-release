@@ -19,9 +19,11 @@ package org.apache.rocketmq.common;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.alibaba.fastjson.annotation.JSONField;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
 import org.apache.rocketmq.common.attribute.TopicMessageType;
 import org.apache.rocketmq.common.constant.PermName;
 
@@ -33,11 +35,20 @@ public class TopicConfig {
     public static int defaultWriteQueueNums = 16;
     private static final TypeReference<Map<String, String>> ATTRIBUTES_TYPE_REFERENCE = new TypeReference<Map<String, String>>() {
     };
+
+    //Topic 名称
     private String topicName;
+
+    //读消息的队列数量，用于创建消息队列时的队列数
     private int readQueueNums = defaultReadQueueNums;
+    //写消息的队列数量，用于创建消息队列时的队列数
     private int writeQueueNums = defaultWriteQueueNums;
+    //权限，默认具有 READ 和 WRITE 的权限
     private int perm = PermName.PERM_READ | PermName.PERM_WRITE;
+    //Topic 过滤类型
     private TopicFilterType topicFilterType = TopicFilterType.SINGLE_TAG;
+
+    //是否为系统 Topic，Broker 在启动时会创建一些系统 Topic 来处理一些特殊的情况。
     private int topicSysFlag = 0;
     private boolean order = false;
     // Field attributes should not have ' ' char in key or value, otherwise will lead to decode failure.
@@ -266,8 +277,8 @@ public class TopicConfig {
     @Override
     public String toString() {
         return "TopicConfig [topicName=" + topicName + ", readQueueNums=" + readQueueNums
-            + ", writeQueueNums=" + writeQueueNums + ", perm=" + PermName.perm2String(perm)
-            + ", topicFilterType=" + topicFilterType + ", topicSysFlag=" + topicSysFlag + ", order=" + order
-            + ", attributes=" + attributes + "]";
+                + ", writeQueueNums=" + writeQueueNums + ", perm=" + PermName.perm2String(perm)
+                + ", topicFilterType=" + topicFilterType + ", topicSysFlag=" + topicSysFlag + ", order=" + order
+                + ", attributes=" + attributes + "]";
     }
 }

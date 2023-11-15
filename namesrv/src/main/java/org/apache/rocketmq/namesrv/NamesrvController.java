@@ -103,6 +103,7 @@ public class NamesrvController {
         this.namesrvConfig = namesrvConfig;
         this.nettyServerConfig = nettyServerConfig;
         this.nettyClientConfig = nettyClientConfig;
+
         this.kvConfigManager = new KVConfigManager(this);
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
         this.routeInfoManager = new RouteInfoManager(namesrvConfig, this);
@@ -129,6 +130,7 @@ public class NamesrvController {
         loadConfig();
         //初始化网络组件
         initiateNetworkComponents();
+
         initiateThreadExecutors();
         //注册处理器
         registerProcessor();

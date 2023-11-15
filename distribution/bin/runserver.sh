@@ -18,6 +18,9 @@
 #===========================================================================================
 # Java Environment Setting
 #===========================================================================================
+
+#https://mdnice.com/writing/650634885d1a494ba54910fd14ceeb11#mqnamesrv%E5%91%BD%E4%BB%A4
+
 error_exit ()
 {
     echo "ERROR: $1 !!"
@@ -26,6 +29,7 @@ error_exit ()
 
 find_java_home()
 {
+    # uname 是获取Linux内核参数的指令，不带任何参数获取当前操作系统的类型，比如Linux就是“Linux”的文本
     case "`uname`" in
         Darwin)
           if [ -n "$JAVA_HOME" ]; then
@@ -35,20 +39,27 @@ find_java_home()
             JAVA_HOME=$(/usr/libexec/java_home)
         ;;
         *)
+            # 可以简单认为获取到javac命令的绝对路径，然后执行两次cd..操作，以此作为JDK的路径
+            # 比如 /opt/jdk/bin/javac dirname 两次之后就是 /opt/jdk
             JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))
         ;;
     esac
 }
-
+# 调用函数
 find_java_home
 
+# 读取JAVA命令的执行地址
 [ ! -e "$JAVA_HOME/bin/java" ] && JAVA_HOME=$HOME/jdk/java
 [ ! -e "$JAVA_HOME/bin/java" ] && JAVA_HOME=/usr/java
 [ ! -e "$JAVA_HOME/bin/java" ] && error_exit "Please set the JAVA_HOME variable in your environment, We need java(x64)!"
 
+# export 导出的临时环境变量，只适用当前SHELL连接
+# JAVA 命令的执行地址,设置为环境变量
 export JAVA_HOME
 export JAVA="$JAVA_HOME/bin/java"
+# $0 代表当前的请求传递的第一个参数，根据上一个脚本可以知道是：${ROCKETMQ_HOME}/bin/runserver.sh
 export BASE_DIR=$(dirname $0)/..
+# 因为需要启动JVM进程，需要从ROCKETMQ_HOME的conf和lib路径告诉JDK找依赖包以及相关的配置文件
 export CLASSPATH=.:${BASE_DIR}/conf:${BASE_DIR}/lib/*:${CLASSPATH}
 
 #===========================================================================================

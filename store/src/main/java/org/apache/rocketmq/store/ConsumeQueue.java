@@ -87,12 +87,14 @@ public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
      * </pre>
      * ConsumeQueue's store unit. Size: CommitLog Physical Offset(8) + Body Size(4) + Tag HashCode(8) = 20 Bytes
      */
+    // 存储单元，一个单元20字节
     public static final int CQ_STORE_UNIT_SIZE = 20;
     public static final int MSG_TAG_OFFSET_INDEX = 12;
     private static final Logger LOG_ERROR = LoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
     private final MessageStore messageStore;
     //映射文件队列
+    // MappedFile 队列，ConsumeQueue 也是基于 MappedFile 内存映射来实现的
     private final MappedFileQueue mappedFileQueue;
     //消息的Topic
     private final String topic;
@@ -798,9 +800,10 @@ public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
      * <p>
      * 申请20个字节长度的buffer，然后依次拼接消息在CommitLog中的偏移量，消息长度和消息的tagCode
      * 然后获取 MappedFile，并把消息保存进去，同时更新maxPhysicOffset字段
-     * ————————————————
-     * 版权声明：本文为CSDN博主「szhlcy」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
-     * 原文链接：https://blog.csdn.net/szhlcy/article/details/115146311
+     * <p>
+     * <p>
+     * <p>
+     * 首先会判断磁盘是否可以写入数据，比如磁盘快没有剩余空间时，就不能写入数据了。然后就是在写入消息位置信息，写入成功后，更新存储检查点中的物理消息时间戳（commitlog）和逻辑消息时间戳（consumequeue）。
      *
      * @param request the request containing dispatch information.
      */
@@ -808,7 +811,7 @@ public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         //最大的重试次数
         final int maxRetries = 30;
-        //检查对应的ConsumeQueue文件是不是可写
+        // 当前是否可写入，会有一个线程检测磁盘是否满了，是否可以写入数据
         boolean canWrite = this.messageStore.getRunningFlags().isCQWriteable();
         //可写 并且 重试次数还没达到30次，则进行写入
         for (int i = 0; i < maxRetries && canWrite; i++) {
@@ -829,15 +832,18 @@ public class ConsumeQueue implements ConsumeQueueInterface, FileQueueLifeCycle {
                             topic, queueId, request.getCommitLogOffset());
                 }
             }
+            // 写入消息位置信息
             //组装消息存储位置信息=》CommitLog中的偏移量，消息的大小，和小的Tag的hash值
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                     request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             //设置CheckPoint文件中的逻辑日志落盘时间
             if (result) {
+                // slave 节点或者启用了 DLedger 技术，更新存储检查点钟物理消息时间戳（commitlog）
                 if (this.messageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE ||
                         this.messageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
                     this.messageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
                 }
+                // 更新逻辑消息时间戳（consumequeue）
                 this.messageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
                 if (checkMultiDispatchQueue(request)) {
                     multiDispatchLmqQueue(request, maxRetries);
