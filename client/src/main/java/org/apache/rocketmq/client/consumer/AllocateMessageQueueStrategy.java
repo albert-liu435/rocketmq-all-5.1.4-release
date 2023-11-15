@@ -17,27 +17,30 @@
 package org.apache.rocketmq.client.consumer;
 
 import java.util.List;
+
 import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
+ * 消费者之间消息分配的策略算法
  * Strategy Algorithm for message allocating between consumers
  */
 public interface AllocateMessageQueueStrategy {
 
     /**
+     * 根据消费者ID进行分配
      * Allocating by consumer id
      *
      * @param consumerGroup current consumer group
-     * @param currentCID current consumer id
-     * @param mqAll message queue set in current topic
-     * @param cidAll consumer set in current consumer group
+     * @param currentCID    current consumer id
+     * @param mqAll         message queue set in current topic
+     * @param cidAll        consumer set in current consumer group
      * @return The allocate result of given strategy
      */
     List<MessageQueue> allocate(
-        final String consumerGroup,
-        final String currentCID,
-        final List<MessageQueue> mqAll,
-        final List<String> cidAll
+            final String consumerGroup,
+            final String currentCID,
+            final List<MessageQueue> mqAll,
+            final List<String> cidAll
     );
 
     /**

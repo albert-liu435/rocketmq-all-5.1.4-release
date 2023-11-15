@@ -19,6 +19,7 @@ package org.apache.rocketmq.client;
 
 import java.io.File;
 import java.util.Properties;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
@@ -63,10 +64,12 @@ public class Validators {
         if (null == msg) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message is null");
         }
+        //topic校验
         // topic
         Validators.checkTopic(msg.getTopic());
         Validators.isNotAllowedSendTopic(msg.getTopic());
 
+        //消息体body校验
         // body
         if (null == msg.getBody()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body is null");
@@ -78,13 +81,13 @@ public class Validators {
 
         if (msg.getBody().length > defaultMQProducer.getMaxMessageSize()) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
-                "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
+                    "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
         }
 
         String lmqPath = msg.getUserProperty(MessageConst.PROPERTY_INNER_MULTI_DISPATCH);
         if (StringUtils.contains(lmqPath, File.separator)) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
-                "INNER_MULTI_DISPATCH " + lmqPath + " can not contains " + File.separator + " character");
+                    "INNER_MULTI_DISPATCH " + lmqPath + " can not contains " + File.separator + " character");
         }
     }
 
@@ -95,7 +98,7 @@ public class Validators {
 
         if (topic.length() > TOPIC_MAX_LENGTH) {
             throw new MQClientException(
-                String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);
+                    String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);
         }
 
         if (isTopicOrGroupIllegal(topic)) {
@@ -122,16 +125,16 @@ public class Validators {
     public static void checkTopicConfig(final TopicConfig topicConfig) throws MQClientException {
         if (!PermName.isValid(topicConfig.getPerm())) {
             throw new MQClientException(ResponseCode.NO_PERMISSION,
-                String.format("topicPermission value: %s is invalid.", topicConfig.getPerm()));
+                    String.format("topicPermission value: %s is invalid.", topicConfig.getPerm()));
         }
     }
 
     public static void checkBrokerConfig(final Properties brokerConfig) throws MQClientException {
         // TODO: use MixAll.isPropertyValid() when jdk upgrade to 1.8
         if (brokerConfig.containsKey("brokerPermission")
-            && !PermName.isValid(brokerConfig.getProperty("brokerPermission"))) {
+                && !PermName.isValid(brokerConfig.getProperty("brokerPermission"))) {
             throw new MQClientException(ResponseCode.NO_PERMISSION,
-                String.format("brokerPermission value: %s is invalid.", brokerConfig.getProperty("brokerPermission")));
+                    String.format("brokerPermission value: %s is invalid.", brokerConfig.getProperty("brokerPermission")));
         }
     }
 }

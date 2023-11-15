@@ -17,7 +17,7 @@
 package org.apache.rocketmq.common;
 
 /**
- * 客服端状态，即broker状态
+ * 服务端状态，即broker状态
  */
 public enum ServiceState {
     /**

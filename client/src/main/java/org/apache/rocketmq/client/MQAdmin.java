@@ -25,35 +25,38 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import java.util.Map;
 
 /**
+ * MQ管理的基础接口
  * Base interface for MQ management
  */
 public interface MQAdmin {
     /**
      * Creates a topic
-     *  @param key accessKey
-     * @param newTopic topic name
-     * @param queueNum topic's queue number
+     *
+     * @param key        accessKey
+     * @param newTopic   topic name
+     * @param queueNum   topic's queue number
      * @param attributes
      */
     void createTopic(final String key, final String newTopic, final int queueNum, Map<String, String> attributes)
-        throws MQClientException;
+            throws MQClientException;
 
     /**
      * Creates a topic
-     *  @param key accessKey
-     * @param newTopic topic name
-     * @param queueNum topic's queue number
+     *
+     * @param key          accessKey
+     * @param newTopic     topic name
+     * @param queueNum     topic's queue number
      * @param topicSysFlag topic system flag
      * @param attributes
      */
     void createTopic(String key, String newTopic, int queueNum, int topicSysFlag, Map<String, String> attributes)
-        throws MQClientException;
+            throws MQClientException;
 
     /**
      * Gets the message queue offset according to some time in milliseconds<br>
      * be cautious to call because of more IO overhead
      *
-     * @param mq Instance of MessageQueue
+     * @param mq        Instance of MessageQueue
      * @param timestamp from when in milliseconds.
      * @return offset
      */
@@ -90,25 +93,25 @@ public interface MQAdmin {
      * @return message
      */
     MessageExt viewMessage(final String offsetMsgId) throws RemotingException, MQBrokerException,
-        InterruptedException, MQClientException;
+            InterruptedException, MQClientException;
 
     /**
      * Query messages
      *
-     * @param topic message topic
-     * @param key message key index word
+     * @param topic  message topic
+     * @param key    message key index word
      * @param maxNum max message number
-     * @param begin from when
-     * @param end to when
+     * @param begin  from when
+     * @param end    to when
      * @return Instance of QueryResult
      */
     QueryResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-        final long end) throws MQClientException, InterruptedException;
+                             final long end) throws MQClientException, InterruptedException;
 
     /**
      * @return The {@code MessageExt} of given msgId
      */
     MessageExt viewMessage(String topic,
-        String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
+                           String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
 
 }

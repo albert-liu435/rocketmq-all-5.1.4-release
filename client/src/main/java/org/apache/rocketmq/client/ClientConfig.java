@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.message.MessageQueue;
@@ -31,6 +32,7 @@ import org.apache.rocketmq.remoting.protocol.NamespaceUtil;
 import org.apache.rocketmq.remoting.protocol.RequestType;
 
 /**
+ * 客服端通用配置
  * Client Common configuration
  */
 public class ClientConfig {
@@ -445,18 +447,18 @@ public class ClientConfig {
     @Override
     public String toString() {
         return "ClientConfig [namesrvAddr=" + namesrvAddr
-            + ", clientIP=" + clientIP + ", instanceName=" + instanceName
-            + ", clientCallbackExecutorThreads=" + clientCallbackExecutorThreads
-            + ", pollNameServerInterval=" + pollNameServerInterval
-            + ", heartbeatBrokerInterval=" + heartbeatBrokerInterval
-            + ", persistConsumerOffsetInterval=" + persistConsumerOffsetInterval
-            + ", pullTimeDelayMillsWhenException=" + pullTimeDelayMillsWhenException
-            + ", unitMode=" + unitMode + ", unitName=" + unitName
-            + ", vipChannelEnabled=" + vipChannelEnabled + ", useTLS=" + useTLS
-            + ", socksProxyConfig=" + socksProxyConfig + ", language=" + language.name()
-            + ", namespace=" + namespace + ", mqClientApiTimeout=" + mqClientApiTimeout
-            + ", decodeReadBody=" + decodeReadBody + ", decodeDecompressBody=" + decodeDecompressBody
-            + ", sendLatencyEnable=" + sendLatencyEnable + ", startDetectorEnable=" + startDetectorEnable
-            + ", enableStreamRequestType=" + enableStreamRequestType + ", useHeartbeatV2=" + useHeartbeatV2 + "]";
+                + ", clientIP=" + clientIP + ", instanceName=" + instanceName
+                + ", clientCallbackExecutorThreads=" + clientCallbackExecutorThreads
+                + ", pollNameServerInterval=" + pollNameServerInterval
+                + ", heartbeatBrokerInterval=" + heartbeatBrokerInterval
+                + ", persistConsumerOffsetInterval=" + persistConsumerOffsetInterval
+                + ", pullTimeDelayMillsWhenException=" + pullTimeDelayMillsWhenException
+                + ", unitMode=" + unitMode + ", unitName=" + unitName
+                + ", vipChannelEnabled=" + vipChannelEnabled + ", useTLS=" + useTLS
+                + ", socksProxyConfig=" + socksProxyConfig + ", language=" + language.name()
+                + ", namespace=" + namespace + ", mqClientApiTimeout=" + mqClientApiTimeout
+                + ", decodeReadBody=" + decodeReadBody + ", decodeDecompressBody=" + decodeDecompressBody
+                + ", sendLatencyEnable=" + sendLatencyEnable + ", startDetectorEnable=" + startDetectorEnable
+                + ", enableStreamRequestType=" + enableStreamRequestType + ", useHeartbeatV2=" + useHeartbeatV2 + "]";
     }
 }

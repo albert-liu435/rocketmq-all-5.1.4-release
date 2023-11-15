@@ -60,6 +60,13 @@ public class ClientRequestProcessor implements NettyRequestProcessor {
         return this.getRouteInfoByTopic(ctx, request);
     }
 
+    /**
+     * 获取topic的路由信息，在生产者第一次发送消息的时候会调用
+     * @param ctx
+     * @param request
+     * @return
+     * @throws RemotingCommandException
+     */
     public RemotingCommand getRouteInfoByTopic(ChannelHandlerContext ctx,
                                                RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);

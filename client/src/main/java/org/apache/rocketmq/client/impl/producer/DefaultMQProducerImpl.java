@@ -126,6 +126,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private final Logger log = LoggerFactory.getLogger(DefaultMQProducerImpl.class);
     private final Random random = new Random();
     private final DefaultMQProducer defaultMQProducer;
+    /**
+     * topic publish 信息表
+     */
     private final ConcurrentMap<String/* topic */, TopicPublishInfo> topicPublishInfoTable =
             new ConcurrentHashMap<>();
     private final ArrayList<SendMessageHook> sendMessageHookList = new ArrayList<>();
@@ -771,6 +774,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             final SendCallback sendCallback,
             final long timeout
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
         //确认客户端的状态
         this.makeSureStateOK();
         /**
@@ -779,12 +783,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
          *  消息体校验 消息体是不是空和消息体的长度
          */
         Validators.checkMessage(msg, this.defaultMQProducer);
+
         //这次调用的id
         final long invokeID = random.nextLong();
+
         //开始时间戳
         long beginTimestampFirst = System.currentTimeMillis();
         long beginTimestampPrev = beginTimestampFirst;
         long endTimestamp = beginTimestampFirst;
+
         //从topic配置缓存中查找对应的已经发布的topic，这里可能会去nameServer去拉取配置
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
         //配置不为null，并且配置有效
@@ -1595,6 +1602,16 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     /**
      * DEFAULT SYNC -------------------------------------------------------
+     */
+    /**
+     * 同步发送消息到broker
+     *
+     * @param msg
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
      */
     public SendResult send(
             Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {

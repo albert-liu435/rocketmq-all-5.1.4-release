@@ -574,6 +574,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
 
     /**
+     * rpc同步调用
+     *
      * @param addr
      * @param request
      * @param timeoutMillis

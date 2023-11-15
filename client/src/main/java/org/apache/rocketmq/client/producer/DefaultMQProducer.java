@@ -712,6 +712,18 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         this.defaultMQProducerImpl.send(msg, selector, arg, sendCallback, timeout);
     }
 
+    /**
+     * 发送消息到mq
+     *
+     * @param msg 消息
+     * @param mq
+     * @param sendCallback
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws InterruptedException
+     * @throws MQBrokerException
+     */
     public SendResult sendDirect(Message msg, MessageQueue mq,
                                  SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException, MQBrokerException {
         // send in sync mode
